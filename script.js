@@ -599,7 +599,7 @@ function definirDataPadrao() {
 }
 
 inputTicker.addEventListener("blur", () => buscarCotacao(inputTicker.value));
-inputComprador.addEventListener("input", atualizarCampoSenha);
+inputComprador.addEventListener("change", atualizarCampoSenha);
 formCompra.addEventListener("submit", salvarCompra);
 btnCancelEdit.addEventListener("click", () => {
   formCompra.reset();
