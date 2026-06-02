@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GR Invest</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Carteira compartilhada</p>
+      <h1>GR Invest</h1>
+    </div>
+    <button class="icon-button" id="btn-refresh" type="button" aria-label="Atualizar carteira" title="Atualizar">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 12a8 8 0 1 1-2.34-5.66"/>
+        <path d="M20 4v6h-6"/>
+      </svg>
+    </button>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <div class="section-title">
+        <h2>Nova compra</h2>
+        <span id="connection-status">Conectando...</span>
+      </div>
+
+      <form id="form-compra" class="form">
+        <label>
+          Ticker
+          <input id="input-ticker" name="ticker" type="text" placeholder="PETR4" autocomplete="off" required>
+        </label>
+
+        <div class="price-box">
+          <span>Cotacao atual</span>
+          <strong id="current-price">Aguardando...</strong>
+        </div>
+
+        <label>
+          Preco de compra
+          <input id="input-preco" name="preco" type="text" inputmode="decimal" placeholder="0,00" required>
+        </label>
+
+        <label>
+          Quantidade
+          <input id="input-qtd" name="quantidade" type="number" min="1" step="1" placeholder="100" required>
+        </label>
+
+        <label>
+          Data
+          <input id="input-data" name="data" type="date" required>
+        </label>
+
+        <label>
+          Comprador
+          <input id="input-comprador" name="comprador" type="text" placeholder="Nome" required>
+        </label>
+
+        <button class="primary-button" type="submit">Salvar compra</button>
+      </form>
+    </section>
+
+    <section class="panel summary-panel">
+      <div class="section-title">
+        <h2>Resumo</h2>
+        <span id="total-itens">0 ativos</span>
+      </div>
+
+      <div class="metrics">
+        <div>
+          <span>Total investido</span>
+          <strong id="total-investido">R$ 0,00</strong>
+        </div>
+        <div>
+          <span>Total de acoes</span>
+          <strong id="total-acoes">0</strong>
+        </div>
+        <div>
+          <span>Ticket medio</span>
+          <strong id="ticket-medio">R$ 0,00</strong>
+        </div>
+      </div>
+
+      <canvas id="grafico-carteira" width="800" height="280" aria-label="Distribuicao da carteira"></canvas>
+    </section>
+
+    <section class="panel table-panel">
+      <div class="section-title">
+        <h2>Compras</h2>
+        <span id="empty-hint">Sem compras cadastradas</span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Ativo</th>
+              <th>Preco</th>
+              <th>Qtd</th>
+              <th>Total</th>
+              <th>Data</th>
+              <th>Comprador</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="compras-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
