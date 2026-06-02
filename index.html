@@ -23,7 +23,7 @@
   <main class="layout">
     <section class="panel">
       <div class="section-title">
-        <h2>Nova compra</h2>
+        <h2 id="form-title">Nova compra</h2>
         <span id="connection-status">Conectando...</span>
       </div>
 
@@ -58,7 +58,10 @@
           <input id="input-comprador" name="comprador" type="text" placeholder="Nome" required>
         </label>
 
-        <button class="primary-button" type="submit">Salvar compra</button>
+        <div class="form-actions">
+          <button class="primary-button" id="btn-submit" type="submit">Salvar compra</button>
+          <button class="secondary-button" id="btn-cancel-edit" type="button" hidden>Cancelar edicao</button>
+        </div>
       </form>
     </section>
 
@@ -83,7 +86,21 @@
         </div>
       </div>
 
-      <canvas id="grafico-carteira" width="800" height="280" aria-label="Distribuicao da carteira"></canvas>
+      <div class="charts">
+        <div class="pie-area">
+          <canvas id="grafico-pizza" width="360" height="280" aria-label="Distribuicao da carteira em pizza"></canvas>
+          <div id="grafico-tooltip" class="chart-tooltip" role="status"></div>
+        </div>
+        <div id="legenda-pizza" class="pie-legend"></div>
+      </div>
+
+      <div class="bar-chart">
+        <div class="chart-heading">
+          <h3>Maior participacao na carteira</h3>
+          <span>Percentual por ativo</span>
+        </div>
+        <div id="barras-carteira" class="bars"></div>
+      </div>
     </section>
 
     <section class="panel table-panel">

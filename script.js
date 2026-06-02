@@ -5,11 +5,16 @@ const supabaseKey = config.SUPABASE_ANON_KEY || "";
 
 let db = null;
 let carteira = [];
+let fatiasPizza = [];
+let compraEmEdicaoId = null;
 
 const inputTicker = document.getElementById("input-ticker");
 const inputPreco = document.getElementById("input-preco");
 const spanPrecoAtual = document.getElementById("current-price");
 const formCompra = document.getElementById("form-compra");
+const formTitle = document.getElementById("form-title");
+const btnSubmit = document.getElementById("btn-submit");
+const btnCancelEdit = document.getElementById("btn-cancel-edit");
 const connectionStatus = document.getElementById("connection-status");
 const comprasBody = document.getElementById("compras-body");
 const totalInvestido = document.getElementById("total-investido");
@@ -18,8 +23,11 @@ const ticketMedio = document.getElementById("ticket-medio");
 const totalItens = document.getElementById("total-itens");
 const emptyHint = document.getElementById("empty-hint");
 const btnRefresh = document.getElementById("btn-refresh");
-const canvas = document.getElementById("grafico-carteira");
+const canvas = document.getElementById("grafico-pizza");
 const ctx = canvas.getContext("2d");
+const tooltipGrafico = document.getElementById("grafico-tooltip");
+const legendaPizza = document.getElementById("legenda-pizza");
+const barrasCarteira = document.getElementById("barras-carteira");
 
 const dinheiro = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -70,7 +78,7 @@ async function carregarCarteira() {
 
 async function buscarCotacao(ticker) {
   const codigo = ticker.trim().toUpperCase();
-  if (!codigo) return;
+  if (!codigo) return null;
 
   spanPrecoAtual.textContent = "Buscando...";
 
@@ -82,7 +90,7 @@ async function buscarCotacao(ticker) {
 
     if (!resposta.ok || !resultado) {
       spanPrecoAtual.textContent = "Nao encontrado";
-      return;
+      return null;
     }
 
     const preco = Number(resultado.regularMarketPrice || 0);
@@ -91,9 +99,12 @@ async function buscarCotacao(ticker) {
     if (!inputPreco.value && preco > 0) {
       inputPreco.value = preco.toFixed(2);
     }
+
+    return resultado;
   } catch (error) {
     console.error("Erro ao buscar cotacao:", error);
     spanPrecoAtual.textContent = "Erro na cotacao";
+    return null;
   }
 }
 
@@ -120,26 +131,98 @@ async function salvarCompra(event) {
     return;
   }
 
-  const novaCompra = {
-    ticker: inputTicker.value.trim().toUpperCase(),
+  const ticker = inputTicker.value.trim().toUpperCase();
+  const ativoEncontrado = await buscarCotacao(ticker);
+
+  if (!ativoEncontrado) {
+    alert(`Ticker "${ticker}" nao encontrado na Brapi. Confira o codigo antes de salvar.`);
+    inputTicker.focus();
+    return;
+  }
+
+  const dadosCompra = {
+    ticker,
     preco_compra: precoCompra,
     quantidade,
     data_compra: document.getElementById("input-data").value,
     comprador: document.getElementById("input-comprador").value.trim()
   };
 
-  const { error } = await db.from("compras").insert([novaCompra]);
+  btnSubmit.disabled = true;
+  btnSubmit.textContent = compraEmEdicaoId ? "Atualizando..." : "Salvando...";
+
+  const { data, error } = compraEmEdicaoId
+    ? await db.from("compras").update(dadosCompra).eq("id", compraEmEdicaoId).select("*").maybeSingle()
+    : await db.from("compras").insert([dadosCompra]).select("*").maybeSingle();
 
   if (error) {
     alert(`Erro ao salvar no banco de dados: ${error.message}`);
     console.error(error);
+    btnSubmit.disabled = false;
+    btnSubmit.textContent = compraEmEdicaoId ? "Atualizar compra" : "Salvar compra";
     return;
   }
 
+  if (!data) {
+    alert("O Supabase nao retornou a compra atualizada. Confira a policy de UPDATE da tabela compras.");
+    btnSubmit.disabled = false;
+    btnSubmit.textContent = compraEmEdicaoId ? "Atualizar compra" : "Salvar compra";
+    return;
+  }
+
+  aplicarCompraNaTela(data);
+  atualizarDashboard();
+
   formCompra.reset();
+  sairModoEdicao();
   definirDataPadrao();
   spanPrecoAtual.textContent = "Aguardando...";
-  carregarCarteira();
+  btnSubmit.disabled = false;
+  await carregarCarteira();
+}
+
+function entrarModoEdicao(id) {
+  const compra = carteira.find((item) => item.id === id);
+  if (!compra) return;
+
+  compraEmEdicaoId = id;
+  formTitle.textContent = "Editar compra";
+  btnSubmit.textContent = "Atualizar compra";
+  btnCancelEdit.hidden = false;
+  inputTicker.value = compra.ticker;
+  inputPreco.value = String(compra.precoCompra).replace(".", ",");
+  document.getElementById("input-qtd").value = compra.quantidade;
+  document.getElementById("input-data").value = compra.data;
+  document.getElementById("input-comprador").value = compra.comprador;
+  spanPrecoAtual.textContent = "Aguardando...";
+  inputTicker.focus();
+}
+
+function sairModoEdicao() {
+  compraEmEdicaoId = null;
+  formTitle.textContent = "Nova compra";
+  btnSubmit.textContent = "Salvar compra";
+  btnSubmit.disabled = false;
+  btnCancelEdit.hidden = true;
+}
+
+function aplicarCompraNaTela(item) {
+  const compra = {
+    id: item.id,
+    ticker: item.ticker,
+    precoCompra: Number(item.preco_compra),
+    quantidade: Number(item.quantidade),
+    data: item.data_compra,
+    comprador: item.comprador
+  };
+  const index = carteira.findIndex((registro) => registro.id === compra.id);
+
+  if (index >= 0) {
+    carteira[index] = compra;
+    return;
+  }
+
+  carteira.unshift(compra);
 }
 
 async function excluirCompra(id) {
@@ -167,7 +250,7 @@ function atualizarDashboard() {
   emptyHint.textContent = carteira.length ? `${carteira.length} compras` : "Sem compras cadastradas";
 
   renderizarTabela();
-  renderizarGrafico();
+  renderizarGraficos();
 }
 
 function renderizarTabela() {
@@ -190,6 +273,12 @@ function renderizarTabela() {
       <td>${formatarData(item.data)}</td>
       <td>${escaparHtml(item.comprador)}</td>
       <td>
+        <button class="edit-button" type="button" data-action="edit" data-id="${item.id}" aria-label="Editar ${escaparHtml(item.ticker)}" title="Editar">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1l1-4Z"/>
+          </svg>
+        </button>
         <button class="delete-button" type="button" data-id="${item.id}" aria-label="Excluir ${escaparHtml(item.ticker)}" title="Excluir">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3 6h18"/>
@@ -206,42 +295,185 @@ function renderizarTabela() {
   });
 }
 
-function renderizarGrafico() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function renderizarGraficos() {
+  const dados = obterResumoPorTicker();
+  renderizarGraficoPizza(dados);
+  renderizarGraficoBarras(dados);
+}
 
-  const porTicker = carteira.reduce((mapa, item) => {
-    mapa[item.ticker] = (mapa[item.ticker] || 0) + item.precoCompra * item.quantidade;
-    return mapa;
+function obterResumoPorTicker() {
+  const totalCarteira = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const mapa = carteira.reduce((resultado, item) => {
+    const ticker = item.ticker;
+    const total = item.precoCompra * item.quantidade;
+
+    if (!resultado[ticker]) {
+      resultado[ticker] = {
+        ticker,
+        total: 0,
+        quantidade: 0,
+        segmento: obterSegmento(ticker),
+        compradores: {}
+      };
+    }
+
+    resultado[ticker].total += total;
+    resultado[ticker].quantidade += item.quantidade;
+    resultado[ticker].compradores[item.comprador] = (resultado[ticker].compradores[item.comprador] || 0) + item.quantidade;
+    return resultado;
   }, {});
 
-  const dados = Object.entries(porTicker);
+  return Object.values(mapa)
+    .map((item) => ({
+      ...item,
+      percentual: totalCarteira ? (item.total / totalCarteira) * 100 : 0
+    }))
+    .sort((a, b) => b.total - a.total);
+}
+
+function renderizarGraficoPizza(dados) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  fatiasPizza = [];
+  legendaPizza.innerHTML = "";
+  esconderTooltip();
+
   if (!dados.length) {
     ctx.fillStyle = "#607080";
     ctx.font = "18px Arial";
-    ctx.fillText("Sem dados para exibir", 24, 52);
+    ctx.fillText("Sem dados para exibir", 28, 52);
+    legendaPizza.innerHTML = '<p class="empty-chart">Cadastre compras para montar os graficos.</p>';
     return;
   }
 
-  const maiorValor = Math.max(...dados.map(([, valor]) => valor));
-  const alturaBarra = 28;
-  const espaco = 18;
-  const inicioX = 110;
+  const total = dados.reduce((soma, item) => soma + item.total, 0);
+  const centroX = 145;
+  const centroY = 140;
+  const raio = 96;
+  let anguloAtual = -Math.PI / 2;
 
-  dados.forEach(([ticker, valor], index) => {
-    const y = 28 + index * (alturaBarra + espaco);
-    const largura = Math.max(6, (valor / maiorValor) * (canvas.width - 220));
+  dados.forEach((item, index) => {
+    const angulo = (item.total / total) * Math.PI * 2;
+    const inicio = anguloAtual;
+    const fim = anguloAtual + angulo;
+    const cor = corDoTicker(item.ticker);
 
-    ctx.fillStyle = "#17212b";
-    ctx.font = "bold 16px Arial";
-    ctx.fillText(ticker, 24, y + 20);
+    ctx.beginPath();
+    ctx.moveTo(centroX, centroY);
+    ctx.arc(centroX, centroY, raio, inicio, fim);
+    ctx.closePath();
+    ctx.fillStyle = cor;
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 4;
+    ctx.stroke();
 
-    ctx.fillStyle = corDoTicker(ticker);
-    ctx.fillRect(inicioX, y, largura, alturaBarra);
-
-    ctx.fillStyle = "#17212b";
-    ctx.font = "14px Arial";
-    ctx.fillText(dinheiro.format(valor), inicioX + largura + 12, y + 20);
+    fatiasPizza.push({ ...item, inicio, fim, centroX, centroY, raio, cor });
+    legendaPizza.appendChild(criarItemLegenda(item, cor, index));
+    anguloAtual = fim;
   });
+
+  ctx.beginPath();
+  ctx.arc(centroX, centroY, 46, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+
+  ctx.fillStyle = "#17212b";
+  ctx.font = "bold 18px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(`${dados.length}`, centroX, centroY - 2);
+  ctx.fillStyle = "#607080";
+  ctx.font = "13px Arial";
+  ctx.fillText(dados.length === 1 ? "ativo" : "ativos", centroX, centroY + 18);
+  ctx.textAlign = "left";
+}
+
+function renderizarGraficoBarras(dados) {
+  barrasCarteira.innerHTML = "";
+
+  if (!dados.length) {
+    barrasCarteira.innerHTML = '<p class="empty-chart">Sem percentuais para exibir.</p>';
+    return;
+  }
+
+  dados.forEach((item, index) => {
+    const barra = document.createElement("div");
+    const opacidade = Math.max(0.42, 1 - index * 0.14);
+    barra.className = "bar-row";
+    barra.innerHTML = `
+      <div class="bar-info">
+        <strong>${escaparHtml(item.ticker)}</strong>
+        <span>${item.percentual.toFixed(1)}% - ${dinheiro.format(item.total)}</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width: ${item.percentual.toFixed(2)}%; background: ${corDoTicker(item.ticker)}; opacity: ${opacidade};"></div>
+      </div>
+    `;
+    barrasCarteira.appendChild(barra);
+  });
+}
+
+function criarItemLegenda(item, cor) {
+  const div = document.createElement("div");
+  div.className = "legend-item";
+  div.innerHTML = `
+    <span class="legend-color" style="background: ${cor};"></span>
+    <div>
+      <strong>${escaparHtml(item.ticker)}</strong>
+      <small>${item.percentual.toFixed(1)}% - ${item.segmento}</small>
+    </div>
+  `;
+  return div;
+}
+
+function mostrarTooltip(event, fatia) {
+  const compradores = Object.entries(fatia.compradores)
+    .map(([nome, quantidade]) => `${escaparHtml(nome)} - ${quantidade}`)
+    .join("<br>");
+  const rect = canvas.getBoundingClientRect();
+
+  tooltipGrafico.innerHTML = `
+    <strong>${escaparHtml(fatia.ticker)}</strong>
+    <span>Quantidade: ${fatia.quantidade}</span>
+    <span>Segmento: ${fatia.segmento}</span>
+    <span>Carteira: ${fatia.percentual.toFixed(1)}%</span>
+    <span>${compradores}</span>
+  `;
+  tooltipGrafico.style.left = `${event.clientX - rect.left + 14}px`;
+  tooltipGrafico.style.top = `${event.clientY - rect.top + 14}px`;
+  tooltipGrafico.classList.add("is-visible");
+}
+
+function esconderTooltip() {
+  tooltipGrafico.classList.remove("is-visible");
+}
+
+function obterFatiaNoMouse(event) {
+  const rect = canvas.getBoundingClientRect();
+  const escalaX = canvas.width / rect.width;
+  const escalaY = canvas.height / rect.height;
+  const x = (event.clientX - rect.left) * escalaX;
+  const y = (event.clientY - rect.top) * escalaY;
+
+  return fatiasPizza.find((fatia) => {
+    const dx = x - fatia.centroX;
+    const dy = y - fatia.centroY;
+    const distancia = Math.sqrt(dx * dx + dy * dy);
+    let angulo = Math.atan2(dy, dx);
+
+    if (angulo < -Math.PI / 2) {
+      angulo += Math.PI * 2;
+    }
+
+    return distancia <= fatia.raio && distancia >= 46 && angulo >= fatia.inicio && angulo <= fatia.fim;
+  });
+}
+
+function obterSegmento(ticker) {
+  if (ticker.endsWith("11")) return "FII, ETF ou Unit";
+  if (ticker.endsWith("34")) return "BDR";
+  if (ticker.endsWith("3")) return "Acao ordinaria";
+  if (ticker.endsWith("4")) return "Acao preferencial";
+  return "Ativo";
 }
 
 function criarIconeTicker(ticker) {
@@ -288,10 +520,34 @@ function definirDataPadrao() {
 
 inputTicker.addEventListener("blur", () => buscarCotacao(inputTicker.value));
 formCompra.addEventListener("submit", salvarCompra);
+btnCancelEdit.addEventListener("click", () => {
+  formCompra.reset();
+  sairModoEdicao();
+  definirDataPadrao();
+  spanPrecoAtual.textContent = "Aguardando...";
+});
 btnRefresh.addEventListener("click", carregarCarteira);
+canvas.addEventListener("mousemove", (event) => {
+  const fatia = obterFatiaNoMouse(event);
+
+  if (!fatia) {
+    esconderTooltip();
+    return;
+  }
+
+  mostrarTooltip(event, fatia);
+});
+canvas.addEventListener("mouseleave", esconderTooltip);
 comprasBody.addEventListener("click", (event) => {
   const botao = event.target.closest("[data-id]");
-  if (botao) excluirCompra(botao.dataset.id);
+  if (!botao) return;
+
+  if (botao.dataset.action === "edit") {
+    entrarModoEdicao(botao.dataset.id);
+    return;
+  }
+
+  excluirCompra(botao.dataset.id);
 });
 
 definirDataPadrao();
