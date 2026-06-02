@@ -7,6 +7,7 @@ let db = null;
 let carteira = [];
 let fatiasPizza = [];
 let compraEmEdicaoId = null;
+let cotacoesAtuais = {};
 
 const inputTicker = document.getElementById("input-ticker");
 const inputPreco = document.getElementById("input-preco");
@@ -22,9 +23,10 @@ const connectionStatus = document.getElementById("connection-status");
 const comprasBody = document.getElementById("compras-body");
 const totalInvestido = document.getElementById("total-investido");
 const totalAcoes = document.getElementById("total-acoes");
-const ticketMedio = document.getElementById("ticket-medio");
 const totalItens = document.getElementById("total-itens");
 const emptyHint = document.getElementById("empty-hint");
+const assetLiveStatus = document.getElementById("asset-live-status");
+const assetLiveList = document.getElementById("asset-live-list");
 const btnRefresh = document.getElementById("btn-refresh");
 const canvas = document.getElementById("grafico-pizza");
 const ctx = canvas.getContext("2d");
@@ -77,6 +79,7 @@ async function carregarCarteira() {
 
   connectionStatus.textContent = "Conectado";
   atualizarDashboard();
+  atualizarCotacoesCarteira();
 }
 
 async function buscarCotacao(ticker) {
@@ -280,12 +283,12 @@ function atualizarDashboard() {
 
   totalInvestido.textContent = dinheiro.format(total);
   totalAcoes.textContent = String(quantidade);
-  ticketMedio.textContent = quantidade ? dinheiro.format(total / quantidade) : dinheiro.format(0);
   totalItens.textContent = `${tickersUnicos} ${tickersUnicos === 1 ? "ativo" : "ativos"}`;
   emptyHint.textContent = carteira.length ? `${carteira.length} compras` : "Sem compras cadastradas";
 
   renderizarTabela();
   renderizarGraficos();
+  renderizarAtivosAoVivo();
 }
 
 function renderizarTabela() {
@@ -364,6 +367,107 @@ function obterResumoPorTicker() {
       percentual: totalCarteira ? (item.total / totalCarteira) * 100 : 0
     }))
     .sort((a, b) => b.total - a.total);
+}
+
+async function atualizarCotacoesCarteira() {
+  const tickers = [...new Set(carteira.map((item) => item.ticker))];
+
+  if (!tickers.length) {
+    cotacoesAtuais = {};
+    assetLiveStatus.textContent = "Sem ativos";
+    renderizarAtivosAoVivo();
+    return;
+  }
+
+  assetLiveStatus.textContent = "Atualizando mercado...";
+
+  const resultados = await Promise.all(
+    tickers.map(async (ticker) => {
+      const cotacao = await buscarCotacaoSilenciosa(ticker);
+      return [ticker, cotacao];
+    })
+  );
+
+  cotacoesAtuais = resultados.reduce((mapa, [ticker, cotacao]) => {
+    mapa[ticker] = cotacao;
+    return mapa;
+  }, {});
+
+  assetLiveStatus.textContent = "Mercado atualizado";
+  renderizarAtivosAoVivo();
+}
+
+async function buscarCotacaoSilenciosa(ticker) {
+  try {
+    const tokenParam = BRAPI_TOKEN ? `?token=${encodeURIComponent(BRAPI_TOKEN)}` : "";
+    const resposta = await fetch(`https://brapi.dev/api/quote/${ticker}${tokenParam}`);
+    const json = await resposta.json();
+    const resultado = json.results && json.results[0];
+
+    if (!resposta.ok || !resultado) {
+      return null;
+    }
+
+    return Number(resultado.regularMarketPrice || 0);
+  } catch (error) {
+    console.error(`Erro ao buscar cotacao de ${ticker}:`, error);
+    return null;
+  }
+}
+
+function renderizarAtivosAoVivo() {
+  const dados = obterResumoPorTicker();
+  assetLiveList.innerHTML = "";
+
+  if (!dados.length) {
+    assetLiveList.innerHTML = '<p class="empty-chart">Sem ativos para acompanhar.</p>';
+    return;
+  }
+
+  dados.forEach((item) => {
+    const precoMedio = item.quantidade ? item.total / item.quantidade : 0;
+    const precoMercado = cotacoesAtuais[item.ticker];
+    const temMercado = Number.isFinite(precoMercado) && precoMercado > 0;
+    const valorMercado = temMercado ? precoMercado * item.quantidade : null;
+    const ganho = temMercado ? valorMercado - item.total : null;
+    const ganhoPercentual = temMercado && item.total ? (ganho / item.total) * 100 : null;
+    const variacaoClasse = ganho === null ? "" : ganho >= 0 ? "positive" : "negative";
+    const sinal = ganho !== null && ganho > 0 ? "+" : "";
+    const card = document.createElement("article");
+
+    card.className = "asset-live-card";
+    card.innerHTML = `
+      <div class="asset-live-head">
+        <div>
+          <strong>${escaparHtml(item.ticker)} (${item.percentual.toFixed(1)}%)</strong>
+          <span>${item.segmento}</span>
+        </div>
+        <strong>${temMercado ? dinheiro.format(valorMercado) : "Cotacao indisponivel"}</strong>
+      </div>
+      <div class="asset-live-grid">
+        <div>
+          <span>Quantidade</span>
+          <strong>${item.quantidade}</strong>
+        </div>
+        <div>
+          <span>Ganho/Perda</span>
+          <strong class="${variacaoClasse}">
+            ${ganho === null ? "Aguardando" : `${sinal}${dinheiro.format(ganho)} (${sinal}${ganhoPercentual.toFixed(2)}%)`}
+          </strong>
+        </div>
+        <div>
+          <span>Preco medio</span>
+          <strong>${dinheiro.format(precoMedio)}</strong>
+        </div>
+        <div>
+          <span>Preco de mercado atual</span>
+          <strong>${temMercado ? dinheiro.format(precoMercado) : "Aguardando"}</strong>
+        </div>
+      </div>
+    `;
+
+    assetLiveList.appendChild(card);
+  });
 }
 
 function renderizarGraficoPizza(dados) {

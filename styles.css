@@ -89,6 +89,10 @@ h3 {
   grid-column: 1 / -1;
 }
 
+.asset-live-panel {
+  grid-column: 1 / -1;
+}
+
 .section-title {
   display: flex;
   align-items: center;
@@ -160,7 +164,7 @@ select:focus {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
@@ -382,6 +386,75 @@ canvas {
   border-radius: inherit;
 }
 
+.asset-live-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.asset-live-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.asset-live-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  background: #f5f7fa;
+  border-bottom: 1px solid var(--line);
+}
+
+.asset-live-head div {
+  display: grid;
+  gap: 4px;
+}
+
+.asset-live-head strong {
+  font-size: 16px;
+}
+
+.asset-live-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.asset-live-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.asset-live-grid > div {
+  display: grid;
+  gap: 6px;
+  min-height: 78px;
+  padding: 14px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.asset-live-grid > div:nth-child(2n) {
+  border-right: 0;
+}
+
+.asset-live-grid > div:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.asset-live-grid span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.asset-live-grid strong {
+  align-self: end;
+  font-size: 18px;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -442,5 +515,20 @@ th {
 
   .pie-legend {
     grid-template-columns: 1fr;
+  }
+
+  .asset-live-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .asset-live-grid > div,
+  .asset-live-grid > div:nth-child(2n),
+  .asset-live-grid > div:nth-last-child(-n + 2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .asset-live-grid > div:last-child {
+    border-bottom: 0;
   }
 }
