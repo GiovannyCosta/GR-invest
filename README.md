@@ -2,7 +2,7 @@
 
 Dashboard simples para registrar compras de ativos, acompanhar o total investido e visualizar a distribuicao da carteira.
 
-O projeto foi feito com HTML, CSS e JavaScript puro, sem framework e sem etapa de build. A ideia e manter o codigo leve, facil de entender e pronto para publicar no GitHub Pages.
+O projeto foi feito com HTML, CSS e JavaScript puro, sem framework e sem etapa de build. A ideia e manter o codigo leve, facil de entender.
 
 ## Preview
 
