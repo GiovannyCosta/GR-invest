@@ -39,6 +39,9 @@ GR-invest/
 +-- index.html
 +-- styles.css
 +-- script.js
++-- build-config.js
++-- netlify.toml
++-- netlify/functions/compras.js
 +-- config.example.js
 +-- .env.example
 +-- .gitignore
@@ -76,8 +79,56 @@ O arquivo `config.js` nao deve ser enviado para o GitHub. Ele ja esta listado no
 
 Abra o arquivo `index.html` no navegador.
 
-Tambem e possivel publicar o projeto no GitHub Pages, desde que as configuracoes do Supabase e da Brapi estejam definidas corretamente no ambiente publicado.
+Para testar as gravacoes seguras localmente, use o Netlify Dev, porque cadastro, edicao e exclusao passam por uma Netlify Function.
+
+## Deploy no Netlify
+
+Use estas configuracoes no Netlify:
+
+```text
+Branch to deploy: main
+Base directory: deixe vazio
+Build command: node build-config.js
+Publish directory: .
+Functions directory: netlify/functions
+```
+
+Adicione estas Environment Variables no Netlify:
+
+```text
+SUPABASE_URL=https://SUA_URL_DO_SUPABASE.supabase.co
+SUPABASE_ANON_KEY=SUA_ANON_KEY_DO_SUPABASE
+BRAPI_TOKEN=SUA_CHAVE_API_BRAPI
+SUPABASE_SERVICE_ROLE_KEY=SUA_SERVICE_ROLE_KEY_DO_SUPABASE
+GIOVANNY_PASSWORD=gi4827@
+RAFAELA_PASSWORD=ra7394@
+```
+
+Durante o deploy, o arquivo `build-config.js` gera um `config.js` automaticamente com as variaveis publicas. As variaveis `SUPABASE_SERVICE_ROLE_KEY`, `GIOVANNY_PASSWORD` e `RAFAELA_PASSWORD` ficam apenas no servidor do Netlify e nao aparecem no navegador.
+
+## Protecao por Senha
+
+Para cadastrar ou editar uma compra, o campo de senha aparece quando o comprador for `Giovanny` ou `Rafaela`.
+
+Senhas atuais:
+
+```text
+Giovanny: gi4827@
+Rafaela: ra7394@
+```
+
+A validacao acontece em `netlify/functions/compras.js`. Essa funcao grava no Supabase usando `SUPABASE_SERVICE_ROLE_KEY`, sem expor essa chave no frontend.
 
 ## Observacao Sobre Seguranca
 
-A chave `anon public` do Supabase pode ser usada no frontend, mas as permissoes da tabela devem ser controladas pelas regras de seguranca do Supabase, como RLS e policies.
+A chave `anon public` do Supabase pode ser usada no frontend para leitura. Para evitar que visitantes gravem direto no banco, deixe o publico apenas com `SELECT` e remova policies publicas de `INSERT`, `UPDATE` e `DELETE`.
+
+Policy recomendada para leitura:
+
+```sql
+create policy "Permitir leitura publica"
+on public.compras
+for select
+to anon
+using (true);
+```

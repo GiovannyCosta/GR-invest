@@ -10,6 +10,9 @@ let compraEmEdicaoId = null;
 
 const inputTicker = document.getElementById("input-ticker");
 const inputPreco = document.getElementById("input-preco");
+const inputComprador = document.getElementById("input-comprador");
+const inputSenha = document.getElementById("input-senha");
+const senhaWrapper = document.getElementById("senha-wrapper");
 const spanPrecoAtual = document.getElementById("current-price");
 const formCompra = document.getElementById("form-compra");
 const formTitle = document.getElementById("form-title");
@@ -140,20 +143,36 @@ async function salvarCompra(event) {
     return;
   }
 
+  const comprador = normalizarComprador(inputComprador.value);
+  if (!comprador) {
+    alert("O comprador precisa ser Giovanny ou Rafaela.");
+    inputComprador.focus();
+    return;
+  }
+
+  if (!inputSenha.value) {
+    alert(`Informe a senha de ${comprador}.`);
+    inputSenha.focus();
+    return;
+  }
+
   const dadosCompra = {
     ticker,
     preco_compra: precoCompra,
     quantidade,
     data_compra: document.getElementById("input-data").value,
-    comprador: document.getElementById("input-comprador").value.trim()
+    comprador
   };
 
   btnSubmit.disabled = true;
   btnSubmit.textContent = compraEmEdicaoId ? "Atualizando..." : "Salvando...";
 
-  const { data, error } = compraEmEdicaoId
-    ? await db.from("compras").update(dadosCompra).eq("id", compraEmEdicaoId).select("*").maybeSingle()
-    : await db.from("compras").insert([dadosCompra]).select("*").maybeSingle();
+  const { data, error } = await enviarCompra({
+    action: compraEmEdicaoId ? "update" : "insert",
+    id: compraEmEdicaoId,
+    compra: dadosCompra,
+    senha: inputSenha.value
+  });
 
   if (error) {
     alert(`Erro ao salvar no banco de dados: ${error.message}`);
@@ -176,6 +195,7 @@ async function salvarCompra(event) {
   formCompra.reset();
   sairModoEdicao();
   definirDataPadrao();
+  atualizarCampoSenha();
   spanPrecoAtual.textContent = "Aguardando...";
   btnSubmit.disabled = false;
   await carregarCarteira();
@@ -193,7 +213,9 @@ function entrarModoEdicao(id) {
   inputPreco.value = String(compra.precoCompra).replace(".", ",");
   document.getElementById("input-qtd").value = compra.quantidade;
   document.getElementById("input-data").value = compra.data;
-  document.getElementById("input-comprador").value = compra.comprador;
+  inputComprador.value = compra.comprador;
+  inputSenha.value = "";
+  atualizarCampoSenha();
   spanPrecoAtual.textContent = "Aguardando...";
   inputTicker.focus();
 }
@@ -226,11 +248,24 @@ function aplicarCompraNaTela(item) {
 }
 
 async function excluirCompra(id) {
-  if (!db || !confirm("Excluir esta compra?")) return;
+  if (!db) return;
 
-  const { error } = await db.from("compras").delete().eq("id", id);
+  const compra = carteira.find((item) => item.id === id);
+  if (!compra) return;
+
+  const senha = prompt(`Senha de ${compra.comprador} para excluir ${compra.ticker}:`);
+  if (!senha) return;
+
+  if (!confirm("Excluir esta compra?")) return;
+
+  const { error } = await enviarCompra({
+    action: "delete",
+    id,
+    senha
+  });
+
   if (error) {
-    alert("Erro ao excluir compra.");
+    alert(`Erro ao excluir compra: ${error.message}`);
     console.error(error);
     return;
   }
@@ -505,6 +540,51 @@ function lerNumero(valor) {
   return Number(String(valor).replace(",", "."));
 }
 
+async function enviarCompra(payload) {
+  try {
+    const response = await fetch("/.netlify/functions/compras", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { data: null, error: { message: data.error || "Erro na funcao do Netlify." } };
+    }
+
+    return { data, error: null };
+  } catch (error) {
+    return {
+      data: null,
+      error: {
+        message: "Nao foi possivel acessar a funcao segura. No PC, rode com Netlify Dev; no site, confira o deploy."
+      }
+    };
+  }
+}
+
+function normalizarComprador(comprador) {
+  const nome = String(comprador || "").trim().toLowerCase();
+
+  if (nome === "giovanny") return "Giovanny";
+  if (nome === "rafaela") return "Rafaela";
+  return "";
+}
+
+function atualizarCampoSenha() {
+  const comprador = normalizarComprador(inputComprador.value);
+  const mostrar = Boolean(comprador);
+
+  senhaWrapper.hidden = !mostrar;
+  inputSenha.disabled = !mostrar;
+  inputSenha.required = mostrar;
+
+  if (!mostrar) {
+    inputSenha.value = "";
+  }
+}
+
 function escaparHtml(valor) {
   return String(valor)
     .replaceAll("&", "&amp;")
@@ -519,11 +599,13 @@ function definirDataPadrao() {
 }
 
 inputTicker.addEventListener("blur", () => buscarCotacao(inputTicker.value));
+inputComprador.addEventListener("input", atualizarCampoSenha);
 formCompra.addEventListener("submit", salvarCompra);
 btnCancelEdit.addEventListener("click", () => {
   formCompra.reset();
   sairModoEdicao();
   definirDataPadrao();
+  atualizarCampoSenha();
   spanPrecoAtual.textContent = "Aguardando...";
 });
 btnRefresh.addEventListener("click", carregarCarteira);
@@ -551,5 +633,6 @@ comprasBody.addEventListener("click", (event) => {
 });
 
 definirDataPadrao();
+atualizarCampoSenha();
 iniciarSupabase();
 carregarCarteira();
