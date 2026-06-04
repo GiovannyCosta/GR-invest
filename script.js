@@ -9,6 +9,7 @@ let fatiasPizza = [];
 let compraEmEdicaoId = null;
 let cotacoesAtuais = {};
 let tipoCompra = "renda-fixa";
+let abaGrafico = "geral";
 
 const inputTicker = document.getElementById("input-ticker");
 const inputPreco = document.getElementById("input-preco");
@@ -34,6 +35,20 @@ const ctx = canvas.getContext("2d");
 const tooltipGrafico = document.getElementById("grafico-tooltip");
 const legendaPizza = document.getElementById("legenda-pizza");
 const barrasCarteira = document.getElementById("barras-carteira");
+const chartTabs = document.querySelectorAll("[data-chart-view]");
+const chartViewGeral = document.getElementById("chart-view-geral");
+const chartViewFiis = document.getElementById("chart-view-fiis");
+const generalChartTotal = document.getElementById("general-chart-total");
+const fiiChartTotal = document.getElementById("fii-chart-total");
+const participacaoTitle = document.getElementById("participacao-title");
+const participacaoSubtitle = document.getElementById("participacao-subtitle");
+const canvasFiis = document.getElementById("grafico-fiis");
+const ctxFiis = canvasFiis.getContext("2d");
+const legendaFiis = document.getElementById("legenda-fiis");
+const barrasFiis = document.getElementById("barras-fiis");
+const canvasFiisTab = document.getElementById("grafico-fiis-tab");
+const ctxFiisTab = canvasFiisTab.getContext("2d");
+const legendaFiisTab = document.getElementById("legenda-fiis-tab");
 const purchaseTabs = document.querySelectorAll("[data-purchase-type]");
 const cdbProductCard = document.getElementById("cdb-product-card");
 const tickerWrapper = document.getElementById("ticker-wrapper");
@@ -45,6 +60,16 @@ const dinheiro = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL"
 });
+
+function atualizarAbaGrafico(aba) {
+  abaGrafico = aba;
+  chartTabs.forEach((tab) => {
+    tab.classList.toggle("is-active", tab.dataset.chartView === aba);
+  });
+  chartViewGeral.hidden = aba !== "geral";
+  chartViewFiis.hidden = aba !== "fiis";
+  renderizarGraficos();
+}
 
 function atualizarTipoCompra(tipo) {
   tipoCompra = tipo;
@@ -380,8 +405,22 @@ function renderizarTabela() {
 
 function renderizarGraficos() {
   const dadosPorClasse = obterResumoPorClasse();
+  const dadosFiis = obterResumoDeFiis();
+  const totalCarteira = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const totalFiis = dadosFiis.reduce((soma, item) => soma + item.total, 0);
+  const percentualFiis = totalCarteira ? (totalFiis / totalCarteira) * 100 : 0;
+  const dadosParticipacao = abaGrafico === "fiis" ? dadosFiis : dadosPorClasse;
+
+  generalChartTotal.textContent = `${dinheiro.format(totalCarteira)} no total`;
+  fiiChartTotal.textContent = `${percentualFiis.toFixed(1)}% da carteira em FIIs`;
+  participacaoTitle.textContent = abaGrafico === "fiis" ? "Maior participacao em FIIs" : "Maior participacao na carteira";
+  participacaoSubtitle.textContent = abaGrafico === "fiis" ? "Percentual por FII" : "Percentual por classe";
+
   renderizarGraficoPizza(dadosPorClasse);
-  renderizarGraficoBarras(dadosPorClasse);
+  renderizarGraficoPizzaSecundario(dadosFiis, ctxFiis, canvasFiis, legendaFiis);
+  renderizarGraficoPizzaSecundario(dadosFiis, ctxFiisTab, canvasFiisTab, legendaFiisTab);
+  renderizarGraficoBarras(dadosParticipacao, barrasCarteira);
+  renderizarGraficoBarras(dadosFiis, barrasFiis);
 }
 
 function obterResumoPorClasse() {
@@ -414,6 +453,15 @@ function obterResumoPorClasse() {
     .sort((a, b) => b.total - a.total);
 }
 
+function obterResumoDeFiis() {
+  const fiis = obterResumoPorTicker().filter((item) => obterClasse(item.ticker) === "FIIs");
+  const totalFiis = fiis.reduce((soma, item) => soma + item.total, 0);
+
+  return fiis.map((item) => ({
+    ...item,
+    percentual: totalFiis ? (item.total / totalFiis) * 100 : 0
+  }));
+}
 function obterResumoPorTicker() {
   const totalCarteira = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
   const mapa = carteira.reduce((resultado, item) => {
@@ -500,12 +548,13 @@ function renderizarAtivosAoVivo() {
   }
 
   dados.forEach((item) => {
+    const rendaFixa = item.ticker === "CDBINTERDI";
     const precoMedio = item.quantidade ? item.total / item.quantidade : 0;
-    const precoMercado = cotacoesAtuais[item.ticker];
-    const temMercado = Number.isFinite(precoMercado) && precoMercado > 0;
+    const precoMercado = rendaFixa ? precoMedio : cotacoesAtuais[item.ticker];
+    const temMercado = rendaFixa || (Number.isFinite(precoMercado) && precoMercado > 0);
     const valorMercado = temMercado ? precoMercado * item.quantidade : null;
-    const ganho = temMercado ? valorMercado - item.total : null;
-    const ganhoPercentual = temMercado && item.total ? (ganho / item.total) * 100 : null;
+    const ganho = rendaFixa ? 0 : temMercado ? valorMercado - item.total : null;
+    const ganhoPercentual = rendaFixa ? 0 : temMercado && item.total ? (ganho / item.total) * 100 : null;
     const variacaoClasse = ganho === null ? "" : ganho >= 0 ? "positive" : "negative";
     const sinal = ganho !== null && ganho > 0 ? "+" : "";
     const card = document.createElement("article");
@@ -535,7 +584,7 @@ function renderizarAtivosAoVivo() {
           <strong>${dinheiro.format(precoMedio)}</strong>
         </div>
         <div>
-          <span>Preco de mercado atual</span>
+          <span>${rendaFixa ? "Valor aplicado" : "Preco de mercado atual"}</span>
           <strong>${temMercado ? dinheiro.format(precoMercado) : "Aguardando"}</strong>
         </div>
       </div>
@@ -601,11 +650,62 @@ function renderizarGraficoPizza(dados) {
   ctx.textAlign = "left";
 }
 
-function renderizarGraficoBarras(dados) {
-  barrasCarteira.innerHTML = "";
+function renderizarGraficoPizzaSecundario(dados, contexto, canvasAlvo, legenda) {
+  contexto.clearRect(0, 0, canvasAlvo.width, canvasAlvo.height);
+  legenda.innerHTML = "";
 
   if (!dados.length) {
-    barrasCarteira.innerHTML = '<p class="empty-chart">Sem percentuais para exibir.</p>';
+    contexto.fillStyle = "#607080";
+    contexto.font = "18px Arial";
+    contexto.fillText("Sem FIIs para exibir", 28, 52);
+    legenda.innerHTML = '<p class="empty-chart">Cadastre FIIs para montar este grafico.</p>';
+    return;
+  }
+
+  const total = dados.reduce((soma, item) => soma + item.total, 0);
+  const centroX = 145;
+  const centroY = 140;
+  const raio = 96;
+  let anguloAtual = -Math.PI / 2;
+
+  dados.forEach((item, index) => {
+    const angulo = (item.total / total) * Math.PI * 2;
+    const inicio = anguloAtual;
+    const fim = anguloAtual + angulo;
+    const cor = corDoTicker(item.ticker);
+
+    contexto.beginPath();
+    contexto.moveTo(centroX, centroY);
+    contexto.arc(centroX, centroY, raio, inicio, fim);
+    contexto.closePath();
+    contexto.fillStyle = cor;
+    contexto.fill();
+    contexto.strokeStyle = "#ffffff";
+    contexto.lineWidth = 4;
+    contexto.stroke();
+
+    legenda.appendChild(criarItemLegenda(item, cor, index));
+    anguloAtual = fim;
+  });
+
+  contexto.beginPath();
+  contexto.arc(centroX, centroY, 46, 0, Math.PI * 2);
+  contexto.fillStyle = "#ffffff";
+  contexto.fill();
+  contexto.fillStyle = "#17212b";
+  contexto.font = "bold 18px Arial";
+  contexto.textAlign = "center";
+  contexto.fillText(`${dados.length}`, centroX, centroY - 2);
+  contexto.fillStyle = "#607080";
+  contexto.font = "13px Arial";
+  contexto.fillText(dados.length === 1 ? "FII" : "FIIs", centroX, centroY + 18);
+  contexto.textAlign = "left";
+}
+function renderizarGraficoBarras(dados, container = barrasCarteira) {
+  container.innerHTML = "";
+
+  if (!dados.length) {
+    container.innerHTML = '<p class="empty-chart">Sem percentuais para exibir.</p>';
     return;
   }
 
@@ -622,7 +722,7 @@ function renderizarGraficoBarras(dados) {
         <div class="bar-fill" style="width: ${item.percentual.toFixed(2)}%; background: ${corDoTicker(item.ticker)}; opacity: ${opacidade};"></div>
       </div>
     `;
-    barrasCarteira.appendChild(barra);
+    container.appendChild(barra);
   });
 }
 
@@ -788,6 +888,7 @@ inputTicker.addEventListener("blur", () => {
   if (tipoCompra !== "renda-fixa") buscarCotacao(inputTicker.value);
 });
 inputComprador.addEventListener("change", atualizarCampoSenha);
+chartTabs.forEach((tab) => tab.addEventListener("click", () => atualizarAbaGrafico(tab.dataset.chartView)));
 purchaseTabs.forEach((tab) => tab.addEventListener("click", () => atualizarTipoCompra(tab.dataset.purchaseType)));
 formCompra.addEventListener("submit", salvarCompra);
 btnCancelEdit.addEventListener("click", () => {
@@ -827,6 +928,9 @@ atualizarTipoCompra("renda-fixa");
 atualizarCampoSenha();
 iniciarSupabase();
 carregarCarteira();
+
+
+
 
 
 

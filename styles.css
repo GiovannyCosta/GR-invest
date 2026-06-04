@@ -610,3 +610,47 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+.chart-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.chart-tab {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--brand);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.chart-tab:hover,
+.chart-tab.is-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #ffffff;
+}
+
+.chart-view {
+  display: grid;
+  gap: 16px;
+}
+
+.chart-block {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.compact-bars {
+  margin-top: 14px;
+}
+
+[hidden] {
+  display: none !important;
+}

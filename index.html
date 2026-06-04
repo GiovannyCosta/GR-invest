@@ -108,18 +108,60 @@
         </div>
       </div>
 
-      <div class="charts">
-        <div class="pie-area">
-          <canvas id="grafico-pizza" width="360" height="280" aria-label="Distribuicao da carteira em pizza"></canvas>
-          <div id="grafico-tooltip" class="chart-tooltip" role="status"></div>
+      <div class="chart-tabs" role="tablist" aria-label="Visualizacao dos graficos">
+        <button class="chart-tab is-active" type="button" data-chart-view="geral">Geral</button>
+        <button class="chart-tab" type="button" data-chart-view="fiis">FIIs</button>
+      </div>
+
+      <div id="chart-view-geral" class="chart-view">
+        <div class="chart-block">
+          <div class="chart-heading">
+            <h3>Carteira geral</h3>
+            <span id="general-chart-total">Total da carteira</span>
+          </div>
+          <div class="charts">
+            <div class="pie-area">
+              <canvas id="grafico-pizza" width="360" height="280" aria-label="Distribuicao geral da carteira em pizza"></canvas>
+              <div id="grafico-tooltip" class="chart-tooltip" role="status"></div>
+            </div>
+            <div id="legenda-pizza" class="pie-legend"></div>
+          </div>
         </div>
-        <div id="legenda-pizza" class="pie-legend"></div>
+
+        <div class="chart-block">
+          <div class="chart-heading">
+            <h3>FIIs na carteira</h3>
+            <span id="fii-chart-total">Percentual por FII</span>
+          </div>
+          <div class="charts">
+            <div class="pie-area">
+              <canvas id="grafico-fiis" width="360" height="280" aria-label="Distribuicao dos FIIs em pizza"></canvas>
+            </div>
+            <div id="legenda-fiis" class="pie-legend"></div>
+          </div>
+          <div id="barras-fiis" class="bars compact-bars"></div>
+        </div>
+      </div>
+
+      <div id="chart-view-fiis" class="chart-view" hidden>
+        <div class="chart-block">
+          <div class="chart-heading">
+            <h3>FIIs</h3>
+            <span>Foco principal da carteira</span>
+          </div>
+          <div class="charts">
+            <div class="pie-area">
+              <canvas id="grafico-fiis-tab" width="360" height="280" aria-label="Distribuicao focada dos FIIs em pizza"></canvas>
+            </div>
+            <div id="legenda-fiis-tab" class="pie-legend"></div>
+          </div>
+        </div>
       </div>
 
       <div class="bar-chart">
         <div class="chart-heading">
-          <h3>Maior participacao na carteira</h3>
-          <span>Percentual por ativo</span>
+          <h3 id="participacao-title">Maior participacao na carteira</h3>
+          <span id="participacao-subtitle">Percentual por classe</span>
         </div>
         <div id="barras-carteira" class="bars"></div>
       </div>
@@ -163,4 +205,5 @@
   <script src="script.js"></script>
 </body>
 </html>
+
 
