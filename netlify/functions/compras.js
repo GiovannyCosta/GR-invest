@@ -20,8 +20,14 @@ exports.handler = async (event) => {
     const supabaseUrl = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!supabaseUrl || !serviceKey) {
-      return resposta(500, { error: "Variaveis do Supabase nao configuradas no Netlify." });
+    const missingSupabaseVars = [];
+    if (!supabaseUrl) missingSupabaseVars.push("SUPABASE_URL");
+    if (!serviceKey) missingSupabaseVars.push("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (missingSupabaseVars.length) {
+      return resposta(500, {
+        error: `Variaveis ausentes no Netlify: ${missingSupabaseVars.join(", ")}. Configure em Site configuration > Environment variables e faca um novo deploy.`
+      });
     }
 
     if (action === "delete") {
