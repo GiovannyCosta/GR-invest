@@ -1,4 +1,4 @@
-const config = window.APP_CONFIG || {};
+﻿const config = window.APP_CONFIG || {};
 const BRAPI_TOKEN = config.BRAPI_TOKEN || "";
 const supabaseUrl = config.SUPABASE_URL || "";
 const supabaseKey = config.SUPABASE_ANON_KEY || "";
@@ -8,6 +8,7 @@ let carteira = [];
 let fatiasPizza = [];
 let compraEmEdicaoId = null;
 let cotacoesAtuais = {};
+let tipoCompra = "renda-fixa";
 
 const inputTicker = document.getElementById("input-ticker");
 const inputPreco = document.getElementById("input-preco");
@@ -33,11 +34,50 @@ const ctx = canvas.getContext("2d");
 const tooltipGrafico = document.getElementById("grafico-tooltip");
 const legendaPizza = document.getElementById("legenda-pizza");
 const barrasCarteira = document.getElementById("barras-carteira");
+const purchaseTabs = document.querySelectorAll("[data-purchase-type]");
+const cdbProductCard = document.getElementById("cdb-product-card");
+const tickerWrapper = document.getElementById("ticker-wrapper");
+const priceWrapper = document.getElementById("price-wrapper");
+const precoLabelText = document.getElementById("preco-label-text");
+const qtdWrapper = document.getElementById("qtd-wrapper");
 
 const dinheiro = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL"
 });
+
+function atualizarTipoCompra(tipo) {
+  tipoCompra = tipo;
+
+  purchaseTabs.forEach((tab) => {
+    tab.classList.toggle("is-active", tab.dataset.purchaseType === tipo);
+  });
+
+  const rendaFixa = tipo === "renda-fixa";
+  const fiis = tipo === "fiis";
+  formTitle.textContent = rendaFixa ? "Nova compra - Renda fixa" : fiis ? "Nova compra - FIIs" : "Nova compra - Acoes";
+  cdbProductCard.hidden = !rendaFixa;
+  tickerWrapper.hidden = rendaFixa;
+  priceWrapper.hidden = rendaFixa;
+  qtdWrapper.hidden = rendaFixa;
+  inputTicker.required = !rendaFixa;
+  document.getElementById("input-qtd").required = !rendaFixa;
+  precoLabelText.textContent = rendaFixa ? "Valor da aplicacao" : "Preco de compra";
+
+  if (rendaFixa) {
+    inputTicker.value = "CDBINTERDI";
+    document.getElementById("input-qtd").value = "1";
+    spanPrecoAtual.textContent = "102% do CDI";
+    inputPreco.placeholder = "0,00";
+    return;
+  }
+
+  if (inputTicker.value === "CDBINTERDI") {
+    inputTicker.value = "";
+    document.getElementById("input-qtd").value = "";
+    spanPrecoAtual.textContent = "Aguardando...";
+  }
+}
 
 function iniciarSupabase() {
   if (!window.supabase || !supabaseUrl || !supabaseKey) {
@@ -123,7 +163,7 @@ async function salvarCompra(event) {
   }
 
   const precoCompra = lerNumero(inputPreco.value);
-  const quantidade = Number(document.getElementById("input-qtd").value);
+  const quantidade = tipoCompra === "renda-fixa" ? 1 : Number(document.getElementById("input-qtd").value);
 
   if (!Number.isFinite(precoCompra) || precoCompra <= 0) {
     alert("Informe um preco valido. Exemplo: 8,04 ou 8.04");
@@ -131,19 +171,22 @@ async function salvarCompra(event) {
     return;
   }
 
-  if (!Number.isInteger(quantidade) || quantidade <= 0) {
+  if (tipoCompra !== "renda-fixa" && (!Number.isInteger(quantidade) || quantidade <= 0)) {
     alert("Informe uma quantidade valida.");
     document.getElementById("input-qtd").focus();
     return;
   }
 
-  const ticker = inputTicker.value.trim().toUpperCase();
-  const ativoEncontrado = await buscarCotacao(ticker);
+  const ticker = tipoCompra === "renda-fixa" ? "CDBINTERDI" : inputTicker.value.trim().toUpperCase();
 
-  if (!ativoEncontrado) {
-    alert(`Ticker "${ticker}" nao encontrado na Brapi. Confira o codigo antes de salvar.`);
-    inputTicker.focus();
-    return;
+  if (tipoCompra !== "renda-fixa") {
+    const ativoEncontrado = await buscarCotacao(ticker);
+
+    if (!ativoEncontrado) {
+      alert(`Ticker "${ticker}" nao encontrado na Brapi. Confira o codigo antes de salvar.`);
+      inputTicker.focus();
+      return;
+    }
   }
 
   const comprador = normalizarComprador(inputComprador.value);
@@ -198,7 +241,8 @@ async function salvarCompra(event) {
   formCompra.reset();
   sairModoEdicao();
   definirDataPadrao();
-  atualizarCampoSenha();
+atualizarTipoCompra("renda-fixa");
+atualizarCampoSenha();
   spanPrecoAtual.textContent = "Aguardando...";
   btnSubmit.disabled = false;
   await carregarCarteira();
@@ -209,6 +253,7 @@ function entrarModoEdicao(id) {
   if (!compra) return;
 
   compraEmEdicaoId = id;
+  atualizarTipoCompra(compra.ticker === "CDBINTERDI" ? "renda-fixa" : compra.ticker.endsWith("11") ? "fiis" : "acoes");
   formTitle.textContent = "Editar compra";
   btnSubmit.textContent = "Atualizar compra";
   btnCancelEdit.hidden = false;
@@ -334,9 +379,39 @@ function renderizarTabela() {
 }
 
 function renderizarGraficos() {
-  const dados = obterResumoPorTicker();
-  renderizarGraficoPizza(dados);
-  renderizarGraficoBarras(dados);
+  const dadosPorClasse = obterResumoPorClasse();
+  renderizarGraficoPizza(dadosPorClasse);
+  renderizarGraficoBarras(dadosPorClasse);
+}
+
+function obterResumoPorClasse() {
+  const totalCarteira = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const mapa = carteira.reduce((resultado, item) => {
+    const ticker = obterClasse(item.ticker);
+    const total = item.precoCompra * item.quantidade;
+
+    if (!resultado[ticker]) {
+      resultado[ticker] = {
+        ticker,
+        total: 0,
+        quantidade: 0,
+        segmento: ticker,
+        compradores: {}
+      };
+    }
+
+    resultado[ticker].total += total;
+    resultado[ticker].quantidade += item.quantidade;
+    resultado[ticker].compradores[item.comprador] = (resultado[ticker].compradores[item.comprador] || 0) + item.quantidade;
+    return resultado;
+  }, {});
+
+  return Object.values(mapa)
+    .map((item) => ({
+      ...item,
+      percentual: totalCarteira ? (item.total / totalCarteira) * 100 : 0
+    }))
+    .sort((a, b) => b.total - a.total);
 }
 
 function obterResumoPorTicker() {
@@ -370,7 +445,7 @@ function obterResumoPorTicker() {
 }
 
 async function atualizarCotacoesCarteira() {
-  const tickers = [...new Set(carteira.map((item) => item.ticker))];
+  const tickers = [...new Set(carteira.map((item) => item.ticker).filter((ticker) => ticker !== "CDBINTERDI"))];
 
   if (!tickers.length) {
     cotacoesAtuais = {};
@@ -607,7 +682,14 @@ function obterFatiaNoMouse(event) {
   });
 }
 
+function obterClasse(ticker) {
+  if (ticker === "CDBINTERDI") return "Renda fixa";
+  if (ticker.endsWith("11")) return "FIIs";
+  return "Acoes";
+}
+
 function obterSegmento(ticker) {
+  if (ticker === "CDBINTERDI") return "CDB Inter LIQ. diaria";
   if (ticker.endsWith("11")) return "FII, ETF ou Unit";
   if (ticker.endsWith("34")) return "BDR";
   if (ticker.endsWith("3")) return "Acao ordinaria";
@@ -629,7 +711,7 @@ function criarIconeTicker(ticker) {
 }
 
 function corDoTicker(ticker) {
-  const cores = ["#126b5c", "#2457a6", "#9b3d2e", "#6d5a14", "#5e4aa8", "#22748f"];
+  const cores = ["#05668d", "#f7e733", "#168a63", "#d88c25", "#5e4aa8", "#22748f"];
   const soma = ticker.split("").reduce((total, letra) => total + letra.charCodeAt(0), 0);
   return cores[soma % cores.length];
 }
@@ -702,14 +784,18 @@ function definirDataPadrao() {
   document.getElementById("input-data").valueAsDate = new Date();
 }
 
-inputTicker.addEventListener("blur", () => buscarCotacao(inputTicker.value));
+inputTicker.addEventListener("blur", () => {
+  if (tipoCompra !== "renda-fixa") buscarCotacao(inputTicker.value);
+});
 inputComprador.addEventListener("change", atualizarCampoSenha);
+purchaseTabs.forEach((tab) => tab.addEventListener("click", () => atualizarTipoCompra(tab.dataset.purchaseType)));
 formCompra.addEventListener("submit", salvarCompra);
 btnCancelEdit.addEventListener("click", () => {
   formCompra.reset();
   sairModoEdicao();
   definirDataPadrao();
-  atualizarCampoSenha();
+atualizarTipoCompra("renda-fixa");
+atualizarCampoSenha();
   spanPrecoAtual.textContent = "Aguardando...";
 });
 btnRefresh.addEventListener("click", carregarCarteira);
@@ -737,6 +823,10 @@ comprasBody.addEventListener("click", (event) => {
 });
 
 definirDataPadrao();
+atualizarTipoCompra("renda-fixa");
 atualizarCampoSenha();
 iniciarSupabase();
 carregarCarteira();
+
+
+
