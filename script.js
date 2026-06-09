@@ -49,6 +49,10 @@ const barrasFiis = document.getElementById("barras-fiis");
 const canvasFiisTab = document.getElementById("grafico-fiis-tab");
 const ctxFiisTab = canvasFiisTab.getContext("2d");
 const legendaFiisTab = document.getElementById("legenda-fiis-tab");
+const patrimonioPeriodo = document.getElementById("patrimonio-periodo");
+const patrimonioTipo = document.getElementById("patrimonio-tipo");
+const canvasPatrimonio = document.getElementById("grafico-patrimonio");
+const ctxPatrimonio = canvasPatrimonio.getContext("2d");
 const purchaseTabs = document.querySelectorAll("[data-purchase-type]");
 const cdbProductCard = document.getElementById("cdb-product-card");
 const tickerWrapper = document.getElementById("ticker-wrapper");
@@ -358,6 +362,7 @@ function atualizarDashboard() {
 
   renderizarTabela();
   renderizarGraficos();
+  renderizarEvolucaoPatrimonio();
   renderizarAtivosAoVivo();
 }
 
@@ -518,6 +523,7 @@ async function atualizarCotacoesCarteira() {
 
   assetLiveStatus.textContent = "Mercado atualizado";
   renderizarAtivosAoVivo();
+  renderizarEvolucaoPatrimonio();
 }
 
 async function buscarCotacaoSilenciosa(ticker) {
@@ -726,6 +732,140 @@ function renderizarGraficoBarras(dados, container = barrasCarteira) {
   });
 }
 
+function renderizarEvolucaoPatrimonio() {
+  const meses = obterMesesEvolucao(Number(patrimonioPeriodo.value || 12));
+  const tipoSelecionado = patrimonioTipo.value;
+  const dados = meses.map((mes) => calcularPatrimonioDoMes(mes, tipoSelecionado));
+  const largura = canvasPatrimonio.width;
+  const altura = canvasPatrimonio.height;
+  const margem = { top: 26, right: 28, bottom: 58, left: 72 };
+  const areaLargura = largura - margem.left - margem.right;
+  const areaAltura = altura - margem.top - margem.bottom;
+  const maiorValor = Math.max(1000, ...dados.map((item) => item.aplicado + item.ganho));
+  const topoEscala = Math.ceil(maiorValor / 1000) * 1000;
+  const linhas = 5;
+
+  ctxPatrimonio.clearRect(0, 0, largura, altura);
+  ctxPatrimonio.fillStyle = "#1d222b";
+  ctxPatrimonio.fillRect(0, 0, largura, altura);
+  ctxPatrimonio.font = "13px Arial";
+  ctxPatrimonio.textBaseline = "middle";
+
+  for (let index = 0; index <= linhas; index += 1) {
+    const valor = topoEscala - (topoEscala / linhas) * index;
+    const y = margem.top + (areaAltura / linhas) * index;
+
+    ctxPatrimonio.beginPath();
+    ctxPatrimonio.moveTo(margem.left, y);
+    ctxPatrimonio.lineTo(largura - margem.right, y);
+    ctxPatrimonio.strokeStyle = index === linhas ? "#4a5260" : "#303744";
+    ctxPatrimonio.lineWidth = 1;
+    ctxPatrimonio.stroke();
+    ctxPatrimonio.fillStyle = "#aeb8c4";
+    ctxPatrimonio.textAlign = "right";
+    ctxPatrimonio.fillText(formatarNumeroGrafico(valor), margem.left - 12, y);
+  }
+
+  const passo = areaLargura / dados.length;
+  const larguraBarra = Math.min(48, passo * 0.66);
+
+  dados.forEach((item, index) => {
+    const x = margem.left + passo * index + (passo - larguraBarra) / 2;
+    const aplicadoAltura = (item.aplicado / topoEscala) * areaAltura;
+    const ganhoAltura = (item.ganho / topoEscala) * areaAltura;
+    const yAplicado = margem.top + areaAltura - aplicadoAltura;
+    const yGanho = yAplicado - ganhoAltura;
+
+    ctxPatrimonio.fillStyle = "#28a977";
+    desenharBarraArredondada(ctxPatrimonio, x, yAplicado, larguraBarra, aplicadoAltura, ganhoAltura > 0 ? 0 : 5);
+
+    if (ganhoAltura > 0) {
+      ctxPatrimonio.fillStyle = "#8dddcf";
+      desenharBarraArredondada(ctxPatrimonio, x, yGanho, larguraBarra, ganhoAltura, 5);
+    }
+
+    ctxPatrimonio.save();
+    ctxPatrimonio.translate(x + larguraBarra / 2, altura - 28);
+    ctxPatrimonio.rotate(-Math.PI / 4);
+    ctxPatrimonio.fillStyle = "#aeb8c4";
+    ctxPatrimonio.textAlign = "right";
+    ctxPatrimonio.fillText(item.rotulo, 0, 0);
+    ctxPatrimonio.restore();
+  });
+
+  if (!carteira.length) {
+    ctxPatrimonio.fillStyle = "#aeb8c4";
+    ctxPatrimonio.textAlign = "center";
+    ctxPatrimonio.font = "18px Arial";
+    ctxPatrimonio.fillText("Cadastre compras para acompanhar a evolucao.", largura / 2, altura / 2);
+  }
+}
+
+function obterMesesEvolucao(totalMeses) {
+  const agora = new Date();
+  const meses = [];
+
+  for (let index = totalMeses - 1; index >= 0; index -= 1) {
+    const data = new Date(agora.getFullYear(), agora.getMonth() - index, 1);
+    meses.push({
+      ano: data.getFullYear(),
+      mes: data.getMonth(),
+      fim: new Date(data.getFullYear(), data.getMonth() + 1, 0),
+      rotulo: `${String(data.getMonth() + 1).padStart(2, "0")}/${String(data.getFullYear()).slice(-2)}`
+    });
+  }
+
+  return meses;
+}
+
+function calcularPatrimonioDoMes(mes, tipoSelecionado) {
+  const comprasDoMes = carteira.filter((item) => {
+    const dataCompra = new Date(`${item.data}T00:00:00`);
+    const classe = obterClasse(item.ticker);
+
+    return dataCompra <= mes.fim && (tipoSelecionado === "todos" || classe === tipoSelecionado);
+  });
+  const aplicado = comprasDoMes.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const valorMercado = comprasDoMes.reduce((soma, item) => {
+    if (item.ticker === "CDBINTERDI") {
+      return soma + item.precoCompra * item.quantidade;
+    }
+
+    const cotacao = cotacoesAtuais[item.ticker];
+    const precoAtual = Number.isFinite(cotacao) && cotacao > 0 ? cotacao : item.precoCompra;
+    return soma + precoAtual * item.quantidade;
+  }, 0);
+
+  return {
+    rotulo: mes.rotulo,
+    aplicado,
+    ganho: Math.max(0, valorMercado - aplicado)
+  };
+}
+
+function desenharBarraArredondada(contexto, x, y, largura, altura, raio) {
+  if (altura <= 0) return;
+
+  const raioFinal = Math.min(raio, largura / 2, altura / 2);
+
+  contexto.beginPath();
+  contexto.moveTo(x, y + altura);
+  contexto.lineTo(x, y + raioFinal);
+  contexto.quadraticCurveTo(x, y, x + raioFinal, y);
+  contexto.lineTo(x + largura - raioFinal, y);
+  contexto.quadraticCurveTo(x + largura, y, x + largura, y + raioFinal);
+  contexto.lineTo(x + largura, y + altura);
+  contexto.closePath();
+  contexto.fill();
+}
+
+function formatarNumeroGrafico(valor) {
+  return valor.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
 function criarItemLegenda(item, cor) {
   const div = document.createElement("div");
   div.className = "legend-item";
@@ -889,6 +1029,8 @@ inputTicker.addEventListener("blur", () => {
 });
 inputComprador.addEventListener("change", atualizarCampoSenha);
 chartTabs.forEach((tab) => tab.addEventListener("click", () => atualizarAbaGrafico(tab.dataset.chartView)));
+patrimonioPeriodo.addEventListener("change", renderizarEvolucaoPatrimonio);
+patrimonioTipo.addEventListener("change", renderizarEvolucaoPatrimonio);
 purchaseTabs.forEach((tab) => tab.addEventListener("click", () => atualizarTipoCompra(tab.dataset.purchaseType)));
 formCompra.addEventListener("submit", salvarCompra);
 btnCancelEdit.addEventListener("click", () => {

@@ -15,6 +15,7 @@ O GR Invest permite cadastrar compras com ticker, preco, quantidade, data e comp
 
 - resumo do total investido;
 - quantidade total de acoes;
+- evolucao mensal do patrimonio por periodo e tipo de ativo;
 - ticket medio da carteira;
 - tabela com todas as compras;
 - grafico simples por ticker;
@@ -34,6 +35,7 @@ O GR Invest permite cadastrar compras com ticker, preco, quantidade, data e comp
 - Listagem dos registros salvos no Supabase.
 - Exclusao de compras.
 - Busca de cotacao atual pela Brapi.
+- Grafico de evolucao do patrimonio com valor aplicado e ganho de capital.
 - Grafico em canvas com distribuicao por ticker.
 - Configuracao local protegida por `.gitignore`.
 

@@ -93,6 +93,109 @@ h3 {
   grid-column: 1 / -1;
 }
 
+.patrimonio-panel {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  background: #1d222b;
+  border-color: #303744;
+  color: #edf2f5;
+  box-shadow: 0 18px 42px rgba(23, 33, 43, 0.18);
+}
+
+.patrimonio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.patrimonio-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chart-filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 170px;
+  min-height: 42px;
+  color: #dce4eb;
+}
+
+.chart-filter svg {
+  position: absolute;
+  left: 14px;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.chart-filter select {
+  min-height: 42px;
+  padding: 9px 36px 9px 42px;
+  border-color: #3a414f;
+  background: #202631;
+  color: #edf2f5;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.chart-filter select:focus {
+  border-color: #8dddcf;
+  box-shadow: 0 0 0 3px rgba(141, 221, 207, 0.14);
+}
+
+.patrimonio-divider {
+  height: 1px;
+  margin-bottom: 18px;
+  background: #303744;
+}
+
+.patrimonio-legend {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-bottom: 8px;
+  color: #b9c3ce;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.patrimonio-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.patrimonio-legend i {
+  width: 28px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.legend-aplicado {
+  background: #28a977;
+}
+
+.legend-ganho {
+  background: #8dddcf;
+}
+
+#grafico-patrimonio {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 260px;
+}
+
 .section-title {
   display: flex;
   align-items: center;
