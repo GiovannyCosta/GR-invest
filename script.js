@@ -23,7 +23,7 @@ const saldoAntigoCdbInter = {
   precoCompra: 2.77,
   quantidade: 1,
   data: "2026-04-09",
-  comprador: "Saldo antigo",
+  comprador: "Giovanny",
   virtual: true
 };
 
