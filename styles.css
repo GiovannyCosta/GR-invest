@@ -634,7 +634,16 @@ canvas {
 
 .asset-live-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.asset-live-featured {
+  display: grid;
+}
+
+.asset-live-grid-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -643,6 +652,10 @@ canvas {
   border-radius: 8px;
   overflow: hidden;
   background: #ffffff;
+}
+
+.asset-live-card.is-cdb .asset-live-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .asset-live-head {
@@ -763,7 +776,15 @@ th {
     grid-template-columns: 1fr;
   }
 
-  .asset-live-grid {
+  .asset-live-grid-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .asset-live-card.is-cdb .asset-live-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .asset-live-card:not(.is-cdb) .asset-live-grid {
     grid-template-columns: 1fr;
   }
 
@@ -776,6 +797,13 @@ th {
 
   .asset-live-grid > div:last-child {
     border-bottom: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .asset-live-grid-list,
+  .asset-live-card.is-cdb .asset-live-grid {
+    grid-template-columns: 1fr;
   }
 }
 

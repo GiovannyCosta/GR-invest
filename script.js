@@ -979,18 +979,36 @@ function renderizarAtivosAoVivo() {
     return;
   }
 
-  dados.forEach((item) => {
-    const rendaFixa = item.ticker === "CDBINTERDI";
-    const precoMedio = item.quantidade ? item.total / item.quantidade : 0;
-    const cdb = rendaFixa ? calcularCdbInter(item) : null;
-    const precoMercado = rendaFixa ? cdb.valorLiquido : cotacoesAtuais[item.ticker];
-    const temMercado = rendaFixa || (Number.isFinite(precoMercado) && precoMercado > 0);
-    const valorMercado = rendaFixa ? cdb.valorLiquido : temMercado ? precoMercado * item.quantidade : null;
-    const ganho = rendaFixa ? cdb.rendimentoLiquido : temMercado ? valorMercado - item.total : null;
-    const ganhoPercentual = rendaFixa ? (item.total ? (ganho / item.total) * 100 : 0) : temMercado && item.total ? (ganho / item.total) * 100 : null;
-    const variacaoClasse = ganho === null ? "" : ganho >= 0 ? "positive" : "negative";
-    const sinal = ganho !== null && ganho > 0 ? "+" : "";
-    const detalhesCdb = rendaFixa ? `
+  const cdb = dados.find((item) => item.ticker === "CDBINTERDI");
+  const outrosAtivos = dados.filter((item) => item.ticker !== "CDBINTERDI");
+
+  if (cdb) {
+    const featured = document.createElement("div");
+    featured.className = "asset-live-featured";
+    featured.appendChild(criarCardAtivoAoVivo(cdb));
+    assetLiveList.appendChild(featured);
+  }
+
+  if (outrosAtivos.length) {
+    const grid = document.createElement("div");
+    grid.className = "asset-live-grid-list";
+    outrosAtivos.forEach((item) => grid.appendChild(criarCardAtivoAoVivo(item)));
+    assetLiveList.appendChild(grid);
+  }
+}
+
+function criarCardAtivoAoVivo(item) {
+  const rendaFixa = item.ticker === "CDBINTERDI";
+  const precoMedio = item.quantidade ? item.total / item.quantidade : 0;
+  const cdb = rendaFixa ? calcularCdbInter(item) : null;
+  const precoMercado = rendaFixa ? cdb.valorLiquido : cotacoesAtuais[item.ticker];
+  const temMercado = rendaFixa || (Number.isFinite(precoMercado) && precoMercado > 0);
+  const valorMercado = rendaFixa ? cdb.valorLiquido : temMercado ? precoMercado * item.quantidade : null;
+  const ganho = rendaFixa ? cdb.rendimentoLiquido : temMercado ? valorMercado - item.total : null;
+  const ganhoPercentual = rendaFixa ? (item.total ? (ganho / item.total) * 100 : 0) : temMercado && item.total ? (ganho / item.total) * 100 : null;
+  const variacaoClasse = ganho === null ? "" : ganho >= 0 ? "positive" : "negative";
+  const sinal = ganho !== null && ganho > 0 ? "+" : "";
+  const detalhesCdb = rendaFixa ? `
         <div>
           <span>IR estimado</span>
           <strong>${dinheiro.format(cdb.ir)}</strong>
@@ -1008,10 +1026,10 @@ function renderizarAtivosAoVivo() {
           <strong>${cdb.diasUteis}</strong>
         </div>
       ` : "";
-    const card = document.createElement("article");
+  const card = document.createElement("article");
 
-    card.className = "asset-live-card";
-    card.innerHTML = `
+  card.className = `asset-live-card${rendaFixa ? " is-cdb" : ""}`;
+  card.innerHTML = `
       <div class="asset-live-head">
         <div>
           <strong>${escaparHtml(item.ticker)} (${item.percentual.toFixed(1)}%)</strong>
@@ -1042,8 +1060,7 @@ function renderizarAtivosAoVivo() {
       </div>
     `;
 
-    assetLiveList.appendChild(card);
-  });
+  return card;
 }
 
 function renderizarGraficoPizza(dados) {
