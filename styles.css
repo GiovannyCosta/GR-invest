@@ -1,14 +1,16 @@
 ﻿:root {
-  --bg: #f4f6f8;
-  --panel: #ffffff;
-  --ink: #17212b;
-  --muted: #607080;
-  --line: #d9e0e7;
-  --brand: #126b5c;
-  --brand-strong: #0d5146;
-  --accent: #d88c25;
-  --danger: #b42318;
-  --shadow: 0 16px 40px rgba(23, 33, 43, 0.08);
+  --bg: #11151d;
+  --panel: #20242d;
+  --panel-soft: #242a34;
+  --ink: #eef3f8;
+  --muted: #9aa6b5;
+  --line: #333a46;
+  --brand: #2aad7d;
+  --brand-strong: #35c592;
+  --accent: #e39a22;
+  --danger: #ff6b70;
+  --blue: #4389ed;
+  --shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
 }
 
 * {
@@ -33,9 +35,27 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 24px clamp(16px, 4vw, 48px);
-  background: #ffffff;
+  padding: 18px clamp(16px, 4vw, 48px);
+  background: #151922;
   border-bottom: 1px solid var(--line);
+}
+
+.trade-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--line);
+  background: rgba(17, 21, 29, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+.trade-nav-inner {
+  display: flex;
+  gap: 6px;
+  width: min(1360px, calc(100% - 32px));
+  margin: 0 auto;
+  overflow-x: auto;
+  padding: 0 0 1px;
 }
 
 .eyebrow {
@@ -53,7 +73,7 @@ h3 {
 }
 
 h1 {
-  font-size: clamp(28px, 4vw, 42px);
+  font-size: clamp(24px, 3vw, 36px);
 }
 
 h2 {
@@ -66,10 +86,10 @@ h3 {
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) 1fr;
+  grid-template-columns: minmax(280px, 340px) 1fr;
   gap: 20px;
-  width: min(1180px, calc(100% - 32px));
-  margin: 24px auto 40px;
+  width: min(1360px, calc(100% - 32px));
+  margin: 18px auto 40px;
 }
 
 .panel {
@@ -757,7 +777,7 @@ th {
 
 .chart-tabs {
   display: inline-grid;
-  grid-template-columns: repeat(2, minmax(110px, 1fr));
+  grid-template-columns: repeat(3, minmax(110px, 1fr));
   gap: 8px;
   margin-bottom: 16px;
 }
@@ -791,10 +811,181 @@ th {
   background: #ffffff;
 }
 
+.comprador-chart {
+  grid-template-columns: 260px 1fr;
+  margin-bottom: 0;
+}
+
+.small-pie-area {
+  width: 260px;
+}
+
+@media (max-width: 520px) {
+  .chart-tabs,
+  .comprador-chart {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .small-pie-area {
+    width: 100%;
+  }
+}
+
 .compact-bars {
   margin-top: 14px;
 }
 
 [hidden] {
   display: none !important;
+}
+
+body {
+  color-scheme: dark;
+}
+
+.trade-nav .purchase-tabs {
+  display: flex;
+  grid-template-columns: none;
+  margin-bottom: 0;
+}
+
+.trade-nav .purchase-tab {
+  min-width: max-content;
+  min-height: 48px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 16px;
+}
+
+.trade-nav .purchase-tab:hover,
+.trade-nav .purchase-tab.is-active {
+  border-color: #dce4eb;
+  background: transparent;
+  color: var(--ink);
+}
+
+.panel,
+.chart-block,
+.bar-chart,
+.asset-live-card {
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+.price-box,
+.metrics > div,
+.asset-live-head,
+.chart-tooltip,
+.patrimonio-tooltip {
+  background: var(--panel-soft);
+  border-color: var(--line);
+}
+
+input,
+select,
+.secondary-button,
+.chart-tab,
+.purchase-tab {
+  border-color: var(--line);
+  background: #181d26;
+  color: var(--ink);
+}
+
+input::placeholder {
+  color: #6f7b8b;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(42, 173, 125, 0.16);
+}
+
+.primary-button {
+  background: var(--brand);
+  color: #08120f;
+}
+
+.primary-button:hover {
+  background: var(--brand-strong);
+}
+
+.icon-button,
+.edit-button,
+.delete-button {
+  background: #252c37;
+}
+
+.chart-tab:hover,
+.chart-tab.is-active,
+.purchase-tab:hover,
+.purchase-tab.is-active {
+  border-color: #596372;
+  background: #303744;
+  color: var(--ink);
+}
+
+.charts {
+  background: #20242d;
+  border-color: var(--line);
+}
+
+.pie-area canvas {
+  cursor: pointer;
+}
+
+.pie-legend {
+  align-items: center;
+}
+
+.legend-item {
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.legend-item.is-active {
+  background: #2a303b;
+}
+
+.legend-item small,
+.chart-heading span,
+.section-title span,
+.price-box span,
+.metrics span,
+.asset-live-grid span,
+.bar-info span,
+th {
+  color: var(--muted);
+}
+
+td,
+th {
+  border-bottom-color: var(--line);
+}
+
+.bar-track {
+  background: #313845;
+}
+
+.cdb-card {
+  background: #181d26;
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+.cdb-grid {
+  border-top-color: var(--line);
+}
+
+.patrimonio-panel {
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+.patrimonio-divider {
+  background: var(--line);
 }

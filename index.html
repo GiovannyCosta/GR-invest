@@ -20,17 +20,19 @@
     </button>
   </header>
 
+  <nav class="trade-nav" aria-label="Tipos de compra">
+    <div class="trade-nav-inner purchase-tabs" role="tablist" aria-label="Tipo de compra">
+      <button class="purchase-tab" type="button" data-purchase-type="fiis">Compra de FIIs</button>
+      <button class="purchase-tab" type="button" data-purchase-type="acoes">Compra de acoes</button>
+      <button class="purchase-tab is-active" type="button" data-purchase-type="renda-fixa">CDB Inter</button>
+    </div>
+  </nav>
+
   <main class="layout">
     <section class="panel">
       <div class="section-title">
         <h2 id="form-title">Nova compra</h2>
         <span id="connection-status">Conectando...</span>
-      </div>
-
-            <div class="purchase-tabs" role="tablist" aria-label="Tipo de compra">
-        <button class="purchase-tab" type="button" data-purchase-type="fiis">FIIs</button>
-        <button class="purchase-tab is-active" type="button" data-purchase-type="renda-fixa">Renda fixa</button>
-        <button class="purchase-tab" type="button" data-purchase-type="acoes">Acoes</button>
       </div>
 
       <article class="cdb-card" id="cdb-product-card">
@@ -111,6 +113,7 @@
       <div class="chart-tabs" role="tablist" aria-label="Visualizacao dos graficos">
         <button class="chart-tab is-active" type="button" data-chart-view="geral">Geral</button>
         <button class="chart-tab" type="button" data-chart-view="fiis">FIIs</button>
+        <button class="chart-tab" type="button" data-chart-view="compradores">Compradores</button>
       </div>
 
       <div id="chart-view-geral" class="chart-view">
@@ -154,6 +157,21 @@
               <canvas id="grafico-fiis-tab" width="360" height="280" aria-label="Distribuicao focada dos FIIs em pizza"></canvas>
             </div>
             <div id="legenda-fiis-tab" class="pie-legend"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="chart-view-compradores" class="chart-view" hidden>
+        <div class="chart-block comprador-chart-block">
+          <div class="chart-heading">
+            <h3>Compras por pessoa</h3>
+            <span id="compradores-chart-total">Total comprado</span>
+          </div>
+          <div class="charts comprador-chart">
+            <div class="pie-area small-pie-area">
+              <canvas id="grafico-compradores" width="260" height="220" aria-label="Distribuicao das compras por comprador em pizza"></canvas>
+            </div>
+            <div id="legenda-compradores" class="pie-legend"></div>
           </div>
         </div>
       </div>

@@ -6,6 +6,8 @@ const supabaseKey = config.SUPABASE_ANON_KEY || "";
 let db = null;
 let carteira = [];
 let fatiasPizza = [];
+let fatiasGraficos = new Map();
+let tooltipsGraficos = new Map();
 let barrasPatrimonio = [];
 let compraEmEdicaoId = null;
 let cotacoesAtuais = {};
@@ -39,8 +41,10 @@ const barrasCarteira = document.getElementById("barras-carteira");
 const chartTabs = document.querySelectorAll("[data-chart-view]");
 const chartViewGeral = document.getElementById("chart-view-geral");
 const chartViewFiis = document.getElementById("chart-view-fiis");
+const chartViewCompradores = document.getElementById("chart-view-compradores");
 const generalChartTotal = document.getElementById("general-chart-total");
 const fiiChartTotal = document.getElementById("fii-chart-total");
+const compradoresChartTotal = document.getElementById("compradores-chart-total");
 const participacaoTitle = document.getElementById("participacao-title");
 const participacaoSubtitle = document.getElementById("participacao-subtitle");
 const canvasFiis = document.getElementById("grafico-fiis");
@@ -50,6 +54,9 @@ const barrasFiis = document.getElementById("barras-fiis");
 const canvasFiisTab = document.getElementById("grafico-fiis-tab");
 const ctxFiisTab = canvasFiisTab.getContext("2d");
 const legendaFiisTab = document.getElementById("legenda-fiis-tab");
+const canvasCompradores = document.getElementById("grafico-compradores");
+const ctxCompradores = canvasCompradores.getContext("2d");
+const legendaCompradores = document.getElementById("legenda-compradores");
 const patrimonioPeriodo = document.getElementById("patrimonio-periodo");
 const patrimonioTipo = document.getElementById("patrimonio-tipo");
 const canvasPatrimonio = document.getElementById("grafico-patrimonio");
@@ -74,6 +81,7 @@ function atualizarAbaGrafico(aba) {
   });
   chartViewGeral.hidden = aba !== "geral";
   chartViewFiis.hidden = aba !== "fiis";
+  chartViewCompradores.hidden = aba !== "compradores";
   renderizarGraficos();
 }
 
@@ -413,19 +421,44 @@ function renderizarTabela() {
 function renderizarGraficos() {
   const dadosPorClasse = obterResumoPorClasse();
   const dadosFiis = obterResumoDeFiis();
+  const dadosCompradores = obterResumoPorComprador();
   const totalCarteira = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
   const totalFiis = dadosFiis.reduce((soma, item) => soma + item.total, 0);
+  const totalCompradores = dadosCompradores.reduce((soma, item) => soma + item.total, 0);
   const percentualFiis = totalCarteira ? (totalFiis / totalCarteira) * 100 : 0;
-  const dadosParticipacao = abaGrafico === "fiis" ? dadosFiis : dadosPorClasse;
+  const dadosParticipacao = abaGrafico === "fiis"
+    ? dadosFiis
+    : abaGrafico === "compradores"
+      ? dadosCompradores
+      : dadosPorClasse;
 
   generalChartTotal.textContent = `${dinheiro.format(totalCarteira)} no total`;
   fiiChartTotal.textContent = `${percentualFiis.toFixed(1)}% da carteira em FIIs`;
-  participacaoTitle.textContent = abaGrafico === "fiis" ? "Maior participacao em FIIs" : "Maior participacao na carteira";
-  participacaoSubtitle.textContent = abaGrafico === "fiis" ? "Percentual por FII" : "Percentual por classe";
+  compradoresChartTotal.textContent = `${dinheiro.format(totalCompradores)} em compras`;
+  participacaoTitle.textContent = abaGrafico === "fiis"
+    ? "Maior participacao em FIIs"
+    : abaGrafico === "compradores"
+      ? "Maior participacao por comprador"
+      : "Maior participacao na carteira";
+  participacaoSubtitle.textContent = abaGrafico === "fiis"
+    ? "Percentual por FII"
+    : abaGrafico === "compradores"
+      ? "Percentual por comprador"
+      : "Percentual por classe";
 
   renderizarGraficoPizza(dadosPorClasse);
   renderizarGraficoPizzaSecundario(dadosFiis, ctxFiis, canvasFiis, legendaFiis);
   renderizarGraficoPizzaSecundario(dadosFiis, ctxFiisTab, canvasFiisTab, legendaFiisTab);
+  renderizarGraficoPizzaSecundario(dadosCompradores, ctxCompradores, canvasCompradores, legendaCompradores, {
+    vazio: "Sem compras para exibir",
+    dicaVazia: "Cadastre compras para comparar Giovanny e Rafaela.",
+    singular: "pessoa",
+    plural: "pessoas",
+    centroX: 130,
+    centroY: 110,
+    raio: 74,
+    raioInterno: 34
+  });
   renderizarGraficoBarras(dadosParticipacao, barrasCarteira);
   renderizarGraficoBarras(dadosFiis, barrasFiis);
 }
@@ -469,6 +502,37 @@ function obterResumoDeFiis() {
     percentual: totalFiis ? (item.total / totalFiis) * 100 : 0
   }));
 }
+
+function obterResumoPorComprador() {
+  const totalCarteira = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const mapa = carteira.reduce((resultado, item) => {
+    const comprador = normalizarComprador(item.comprador) || item.comprador || "Sem comprador";
+    const total = item.precoCompra * item.quantidade;
+
+    if (!resultado[comprador]) {
+      resultado[comprador] = {
+        ticker: comprador,
+        total: 0,
+        quantidade: 0,
+        segmento: "Compras",
+        compradores: {}
+      };
+    }
+
+    resultado[comprador].total += total;
+    resultado[comprador].quantidade += 1;
+    resultado[comprador].compradores[comprador] = resultado[comprador].quantidade;
+    return resultado;
+  }, {});
+
+  return Object.values(mapa)
+    .map((item) => ({
+      ...item,
+      percentual: totalCarteira ? (item.total / totalCarteira) * 100 : 0
+    }))
+    .sort((a, b) => b.total - a.total);
+}
+
 function obterResumoPorTicker() {
   const totalCarteira = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
   const mapa = carteira.reduce((resultado, item) => {
@@ -603,77 +667,60 @@ function renderizarAtivosAoVivo() {
 }
 
 function renderizarGraficoPizza(dados) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  fatiasPizza = [];
-  legendaPizza.innerHTML = "";
-  esconderTooltip();
-
-  if (!dados.length) {
-    ctx.fillStyle = "#607080";
-    ctx.font = "18px Arial";
-    ctx.fillText("Sem dados para exibir", 28, 52);
-    legendaPizza.innerHTML = '<p class="empty-chart">Cadastre compras para montar os graficos.</p>';
-    return;
-  }
-
-  const total = dados.reduce((soma, item) => soma + item.total, 0);
-  const centroX = 145;
-  const centroY = 140;
-  const raio = 96;
-  let anguloAtual = -Math.PI / 2;
-
-  dados.forEach((item, index) => {
-    const angulo = (item.total / total) * Math.PI * 2;
-    const inicio = anguloAtual;
-    const fim = anguloAtual + angulo;
-    const cor = corDoTicker(item.ticker);
-
-    ctx.beginPath();
-    ctx.moveTo(centroX, centroY);
-    ctx.arc(centroX, centroY, raio, inicio, fim);
-    ctx.closePath();
-    ctx.fillStyle = cor;
-    ctx.fill();
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 4;
-    ctx.stroke();
-
-    fatiasPizza.push({ ...item, inicio, fim, centroX, centroY, raio, cor });
-    legendaPizza.appendChild(criarItemLegenda(item, cor, index));
-    anguloAtual = fim;
+  renderizarDonut(dados, ctx, canvas, legendaPizza, {
+    vazio: "Sem dados para exibir",
+    dicaVazia: "Cadastre compras para montar os graficos.",
+    singular: "ativo",
+    plural: "ativos"
   });
 
-  ctx.beginPath();
-  ctx.arc(centroX, centroY, 46, 0, Math.PI * 2);
-  ctx.fillStyle = "#ffffff";
-  ctx.fill();
-
-  ctx.fillStyle = "#17212b";
-  ctx.font = "bold 18px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText(`${dados.length}`, centroX, centroY - 2);
-  ctx.fillStyle = "#607080";
-  ctx.font = "13px Arial";
-  ctx.fillText(dados.length === 1 ? "ativo" : "ativos", centroX, centroY + 18);
-  ctx.textAlign = "left";
+  fatiasPizza = fatiasGraficos.get(canvas) || [];
 }
 
-function renderizarGraficoPizzaSecundario(dados, contexto, canvasAlvo, legenda) {
+function renderizarGraficoPizzaSecundario(dados, contexto, canvasAlvo, legenda, opcoes = {}) {
+  renderizarDonut(dados, contexto, canvasAlvo, legenda, {
+    vazio: "Sem FIIs para exibir",
+    dicaVazia: "Cadastre FIIs para montar este grafico.",
+    singular: "FII",
+    plural: "FIIs",
+    centroX: 145,
+    centroY: 140,
+    raio: 96,
+    raioInterno: 46,
+    ...opcoes
+  });
+}
+
+function renderizarDonut(dados, contexto, canvasAlvo, legenda, opcoes = {}) {
+  const configGrafico = {
+    vazio: "Sem dados para exibir",
+    dicaVazia: "Cadastre compras para montar este grafico.",
+    singular: "item",
+    plural: "itens",
+    centroX: 145,
+    centroY: 140,
+    raio: 96,
+    raioInterno: 46,
+    ...opcoes
+  };
+  const fatias = [];
+
   contexto.clearRect(0, 0, canvasAlvo.width, canvasAlvo.height);
   legenda.innerHTML = "";
+  fatiasGraficos.set(canvasAlvo, fatias);
 
   if (!dados.length) {
-    contexto.fillStyle = "#607080";
+    contexto.fillStyle = "#9aa6b5";
     contexto.font = "18px Arial";
-    contexto.fillText("Sem FIIs para exibir", 28, 52);
-    legenda.innerHTML = '<p class="empty-chart">Cadastre FIIs para montar este grafico.</p>';
+    contexto.fillText(configGrafico.vazio, 28, 52);
+    legenda.innerHTML = `<p class="empty-chart">${configGrafico.dicaVazia}</p>`;
     return;
   }
 
   const total = dados.reduce((soma, item) => soma + item.total, 0);
-  const centroX = 145;
-  const centroY = 140;
-  const raio = 96;
+  const centroX = configGrafico.centroX;
+  const centroY = configGrafico.centroY;
+  const raio = configGrafico.raio;
   let anguloAtual = -Math.PI / 2;
 
   dados.forEach((item, index) => {
@@ -688,25 +735,37 @@ function renderizarGraficoPizzaSecundario(dados, contexto, canvasAlvo, legenda) 
     contexto.closePath();
     contexto.fillStyle = cor;
     contexto.fill();
-    contexto.strokeStyle = "#ffffff";
+    contexto.strokeStyle = "#20242d";
     contexto.lineWidth = 4;
     contexto.stroke();
 
-    legenda.appendChild(criarItemLegenda(item, cor, index));
+    const itemLegenda = criarItemLegenda(item, cor, index);
+    legenda.appendChild(itemLegenda);
+    fatias.push({
+      ...item,
+      inicio,
+      fim,
+      centroX,
+      centroY,
+      raio,
+      raioInterno: configGrafico.raioInterno,
+      cor,
+      legenda: itemLegenda
+    });
     anguloAtual = fim;
   });
 
   contexto.beginPath();
-  contexto.arc(centroX, centroY, 46, 0, Math.PI * 2);
-  contexto.fillStyle = "#ffffff";
+  contexto.arc(centroX, centroY, configGrafico.raioInterno, 0, Math.PI * 2);
+  contexto.fillStyle = "#20242d";
   contexto.fill();
-  contexto.fillStyle = "#17212b";
+  contexto.fillStyle = "#eef3f8";
   contexto.font = "bold 18px Arial";
   contexto.textAlign = "center";
   contexto.fillText(`${dados.length}`, centroX, centroY - 2);
-  contexto.fillStyle = "#607080";
+  contexto.fillStyle = "#9aa6b5";
   contexto.font = "13px Arial";
-  contexto.fillText(dados.length === 1 ? "FII" : "FIIs", centroX, centroY + 18);
+  contexto.fillText(dados.length === 1 ? configGrafico.singular : configGrafico.plural, centroX, centroY + 18);
   contexto.textAlign = "left";
 }
 function renderizarGraficoBarras(dados, container = barrasCarteira) {
@@ -1086,36 +1145,43 @@ function criarItemLegenda(item, cor) {
   return div;
 }
 
-function mostrarTooltip(event, fatia) {
-  const compradores = Object.entries(fatia.compradores)
+function mostrarTooltip(event, fatia, canvasAlvo = canvas) {
+  const tooltip = obterTooltipDoGrafico(canvasAlvo);
+  const compradores = Object.entries(fatia.compradores || {})
     .map(([nome, quantidade]) => `${escaparHtml(nome)} - ${quantidade}`)
     .join("<br>");
-  const rect = canvas.getBoundingClientRect();
+  const rect = canvasAlvo.getBoundingClientRect();
+  const carteiraTexto = `${fatia.percentual.toFixed(1)}%`;
 
-  tooltipGrafico.innerHTML = `
+  tooltip.innerHTML = `
     <strong>${escaparHtml(fatia.ticker)}</strong>
-    <span>Quantidade: ${fatia.quantidade}</span>
+    <span>${dinheiro.format(fatia.total)}</span>
     <span>Segmento: ${fatia.segmento}</span>
-    <span>Carteira: ${fatia.percentual.toFixed(1)}%</span>
-    <span>${compradores}</span>
+    <span>Participacao: ${carteiraTexto}</span>
+    ${compradores ? `<span>${compradores}</span>` : ""}
   `;
-  tooltipGrafico.style.left = `${event.clientX - rect.left + 14}px`;
-  tooltipGrafico.style.top = `${event.clientY - rect.top + 14}px`;
-  tooltipGrafico.classList.add("is-visible");
+  tooltip.style.left = `${event.clientX - rect.left + 14}px`;
+  tooltip.style.top = `${event.clientY - rect.top + 14}px`;
+  tooltip.classList.add("is-visible");
+  fatia.legenda?.classList.add("is-active");
 }
 
-function esconderTooltip() {
-  tooltipGrafico.classList.remove("is-visible");
+function esconderTooltip(canvasAlvo = canvas) {
+  const tooltip = obterTooltipDoGrafico(canvasAlvo);
+  tooltip.classList.remove("is-visible");
+  (fatiasGraficos.get(canvasAlvo) || []).forEach((fatia) => {
+    fatia.legenda?.classList.remove("is-active");
+  });
 }
 
-function obterFatiaNoMouse(event) {
-  const rect = canvas.getBoundingClientRect();
-  const escalaX = canvas.width / rect.width;
-  const escalaY = canvas.height / rect.height;
+function obterFatiaNoMouse(event, canvasAlvo = canvas) {
+  const rect = canvasAlvo.getBoundingClientRect();
+  const escalaX = canvasAlvo.width / rect.width;
+  const escalaY = canvasAlvo.height / rect.height;
   const x = (event.clientX - rect.left) * escalaX;
   const y = (event.clientY - rect.top) * escalaY;
 
-  return fatiasPizza.find((fatia) => {
+  return (fatiasGraficos.get(canvasAlvo) || []).find((fatia) => {
     const dx = x - fatia.centroX;
     const dy = y - fatia.centroY;
     const distancia = Math.sqrt(dx * dx + dy * dy);
@@ -1125,8 +1191,25 @@ function obterFatiaNoMouse(event) {
       angulo += Math.PI * 2;
     }
 
-    return distancia <= fatia.raio && distancia >= 46 && angulo >= fatia.inicio && angulo <= fatia.fim;
+    return distancia <= fatia.raio && distancia >= fatia.raioInterno && angulo >= fatia.inicio && angulo <= fatia.fim;
   });
+}
+
+function obterTooltipDoGrafico(canvasAlvo) {
+  if (tooltipsGraficos.has(canvasAlvo)) {
+    return tooltipsGraficos.get(canvasAlvo);
+  }
+
+  const tooltip = canvasAlvo === canvas ? tooltipGrafico : document.createElement("div");
+
+  if (canvasAlvo !== canvas) {
+    tooltip.className = "chart-tooltip";
+    tooltip.setAttribute("role", "status");
+    canvasAlvo.parentElement.appendChild(tooltip);
+  }
+
+  tooltipsGraficos.set(canvasAlvo, tooltip);
+  return tooltip;
 }
 
 function obterClasse(ticker) {
@@ -1158,7 +1241,20 @@ function criarIconeTicker(ticker) {
 }
 
 function corDoTicker(ticker) {
-  const cores = ["#05668d", "#f7e733", "#168a63", "#d88c25", "#5e4aa8", "#22748f"];
+  const coresFixas = {
+    FIIs: "#4389ed",
+    Acoes: "#69dfad",
+    "Renda fixa": "#ffdf61",
+    Giovanny: "#e39a22",
+    Rafaela: "#087da0",
+    CDBINTERDI: "#ffdf61"
+  };
+
+  if (coresFixas[ticker]) {
+    return coresFixas[ticker];
+  }
+
+  const cores = ["#6752b5", "#2a8196", "#ff7575", "#4fd2d8", "#b66cff", "#ff955c"];
   const soma = ticker.split("").reduce((total, letra) => total + letra.charCodeAt(0), 0);
   return cores[soma % cores.length];
 }
@@ -1231,6 +1327,21 @@ function definirDataPadrao() {
   document.getElementById("input-data").valueAsDate = new Date();
 }
 
+function registrarInteracaoPizza(canvasAlvo) {
+  canvasAlvo.addEventListener("mousemove", (event) => {
+    const fatia = obterFatiaNoMouse(event, canvasAlvo);
+
+    if (!fatia) {
+      esconderTooltip(canvasAlvo);
+      return;
+    }
+
+    esconderTooltip(canvasAlvo);
+    mostrarTooltip(event, fatia, canvasAlvo);
+  });
+  canvasAlvo.addEventListener("mouseleave", () => esconderTooltip(canvasAlvo));
+}
+
 inputTicker.addEventListener("blur", () => {
   if (tipoCompra !== "renda-fixa") buscarCotacao(inputTicker.value);
 });
@@ -1244,22 +1355,12 @@ btnCancelEdit.addEventListener("click", () => {
   formCompra.reset();
   sairModoEdicao();
   definirDataPadrao();
-atualizarTipoCompra("renda-fixa");
-atualizarCampoSenha();
+  atualizarTipoCompra("renda-fixa");
+  atualizarCampoSenha();
   spanPrecoAtual.textContent = "Aguardando...";
 });
 btnRefresh.addEventListener("click", carregarCarteira);
-canvas.addEventListener("mousemove", (event) => {
-  const fatia = obterFatiaNoMouse(event);
-
-  if (!fatia) {
-    esconderTooltip();
-    return;
-  }
-
-  mostrarTooltip(event, fatia);
-});
-canvas.addEventListener("mouseleave", esconderTooltip);
+[canvas, canvasFiis, canvasFiisTab, canvasCompradores].forEach(registrarInteracaoPizza);
 canvasPatrimonio.addEventListener("mousemove", (event) => {
   const barra = obterBarraPatrimonioNoMouse(event);
 
