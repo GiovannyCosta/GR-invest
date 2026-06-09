@@ -11,6 +11,7 @@ let tooltipsGraficos = new Map();
 let barrasPatrimonio = [];
 let compraEmEdicaoId = null;
 let cotacoesAtuais = {};
+let proventosRecebidos = [];
 let tipoCompra = "renda-fixa";
 let abaGrafico = "geral";
 
@@ -28,8 +29,12 @@ const connectionStatus = document.getElementById("connection-status");
 const comprasBody = document.getElementById("compras-body");
 const totalInvestido = document.getElementById("total-investido");
 const totalAcoes = document.getElementById("total-acoes");
+const totalProventos = document.getElementById("total-proventos");
+const patrimonioProventos = document.getElementById("patrimonio-proventos");
 const totalItens = document.getElementById("total-itens");
 const emptyHint = document.getElementById("empty-hint");
+const proventosStatus = document.getElementById("proventos-status");
+const proventosLista = document.getElementById("proventos-lista");
 const assetLiveStatus = document.getElementById("asset-live-status");
 const assetLiveList = document.getElementById("asset-live-list");
 const btnRefresh = document.getElementById("btn-refresh");
@@ -159,6 +164,7 @@ async function carregarCarteira() {
   connectionStatus.textContent = "Conectado";
   atualizarDashboard();
   atualizarCotacoesCarteira();
+  atualizarProventos();
 }
 
 async function buscarCotacao(ticker) {
@@ -364,15 +370,19 @@ function atualizarDashboard() {
   const total = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
   const quantidade = carteira.reduce((soma, item) => soma + item.quantidade, 0);
   const tickersUnicos = new Set(carteira.map((item) => item.ticker)).size;
+  const totalRecebido = proventosRecebidos.reduce((soma, item) => soma + item.total, 0);
 
   totalInvestido.textContent = dinheiro.format(total);
   totalAcoes.textContent = String(quantidade);
+  totalProventos.textContent = dinheiro.format(totalRecebido);
+  patrimonioProventos.textContent = dinheiro.format(total + totalRecebido);
   totalItens.textContent = `${tickersUnicos} ${tickersUnicos === 1 ? "ativo" : "ativos"}`;
   emptyHint.textContent = carteira.length ? `${carteira.length} compras` : "Sem compras cadastradas";
 
   renderizarTabela();
   renderizarGraficos();
   renderizarEvolucaoPatrimonio();
+  renderizarProventos();
   renderizarAtivosAoVivo();
 }
 
@@ -608,6 +618,139 @@ async function buscarCotacaoSilenciosa(ticker) {
     console.error(`Erro ao buscar cotacao de ${ticker}:`, error);
     return null;
   }
+}
+
+async function atualizarProventos() {
+  const fiis = [...new Set(carteira.map((item) => item.ticker).filter((ticker) => obterClasse(ticker) === "FIIs"))];
+
+  if (!fiis.length) {
+    proventosRecebidos = [];
+    proventosStatus.textContent = "Sem FIIs";
+    atualizarDashboard();
+    return;
+  }
+
+  proventosStatus.textContent = "Buscando proventos...";
+
+  try {
+    const hoje = new Date();
+    const inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 12, hoje.getDate());
+    const params = new URLSearchParams({
+      symbols: fiis.slice(0, 20).join(","),
+      startDate: formatarDataApi(inicio),
+      endDate: formatarDataApi(hoje),
+      sortOrder: "asc"
+    });
+    const headers = BRAPI_TOKEN ? { Authorization: `Bearer ${BRAPI_TOKEN}` } : {};
+    const resposta = await fetch(`https://brapi.dev/api/v2/fii/dividends?${params.toString()}`, { headers });
+    const json = await resposta.json();
+
+    if (!resposta.ok) {
+      throw new Error(json.message || json.error || "Nao foi possivel buscar proventos.");
+    }
+
+    proventosRecebidos = calcularProventosRecebidos(json.dividends || [], hoje);
+    proventosStatus.textContent = proventosRecebidos.length
+      ? `${proventosRecebidos.length} pagamentos elegiveis`
+      : "Sem pagamentos elegiveis";
+    atualizarDashboard();
+  } catch (error) {
+    console.error("Erro ao buscar proventos:", error);
+    proventosRecebidos = [];
+    proventosStatus.textContent = "Proventos indisponiveis";
+    atualizarDashboard();
+  }
+}
+
+function calcularProventosRecebidos(dividendos, hoje) {
+  return dividendos
+    .map((dividendo) => {
+      const ticker = String(dividendo.symbol || "").toUpperCase();
+      const dataBase = criarDataBrapi(dividendo.lastDatePrior);
+      const dataPagamento = criarDataBrapi(dividendo.paymentDate);
+      const valorPorCota = Number(dividendo.rate || 0);
+
+      if (!ticker || !dataBase || !dataPagamento || dataPagamento > hoje || valorPorCota <= 0) {
+        return null;
+      }
+
+      const quantidadeElegivel = carteira
+        .filter((item) => item.ticker === ticker && new Date(`${item.data}T00:00:00`) <= dataBase)
+        .reduce((soma, item) => soma + item.quantidade, 0);
+
+      if (quantidadeElegivel <= 0) {
+        return null;
+      }
+
+      return {
+        ticker,
+        quantidade: quantidadeElegivel,
+        valorPorCota,
+        total: quantidadeElegivel * valorPorCota,
+        dataBase,
+        dataPagamento,
+        label: dividendo.label || "Provento"
+      };
+    })
+    .filter(Boolean);
+}
+
+function renderizarProventos() {
+  proventosLista.innerHTML = "";
+
+  if (!proventosRecebidos.length) {
+    proventosLista.innerHTML = '<p class="empty-chart">Sem proventos recebidos para as compras elegiveis.</p>';
+    return;
+  }
+
+  const porTicker = proventosRecebidos.reduce((resultado, item) => {
+    if (!resultado[item.ticker]) {
+      resultado[item.ticker] = {
+        ticker: item.ticker,
+        total: 0,
+        pagamentos: 0,
+        ultimoPagamento: item.dataPagamento
+      };
+    }
+
+    resultado[item.ticker].total += item.total;
+    resultado[item.ticker].pagamentos += 1;
+
+    if (item.dataPagamento > resultado[item.ticker].ultimoPagamento) {
+      resultado[item.ticker].ultimoPagamento = item.dataPagamento;
+    }
+
+    return resultado;
+  }, {});
+
+  Object.values(porTicker)
+    .sort((a, b) => b.total - a.total)
+    .forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "income-row";
+      row.innerHTML = `
+        <div>
+          <strong>${escaparHtml(item.ticker)}</strong>
+          <span>${item.pagamentos} ${item.pagamentos === 1 ? "pagamento" : "pagamentos"} - ultimo em ${formatarDataObjeto(item.ultimoPagamento)}</span>
+        </div>
+        <strong>${dinheiro.format(item.total)}</strong>
+      `;
+      proventosLista.appendChild(row);
+    });
+}
+
+function criarDataBrapi(valor) {
+  if (!valor) return null;
+  const data = new Date(String(valor).replace(" ", "T"));
+  return Number.isNaN(data.getTime()) ? null : data;
+}
+
+function formatarDataApi(data) {
+  return data.toISOString().slice(0, 10);
+}
+
+function formatarDataObjeto(data) {
+  return new Intl.DateTimeFormat("pt-BR").format(data);
 }
 
 function renderizarAtivosAoVivo() {
