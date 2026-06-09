@@ -137,9 +137,6 @@ function atualizarTelaPrincipal(tela) {
   purchaseNav.hidden = !comprasAtivo;
   mainLayout.classList.toggle("is-home", !comprasAtivo);
 
-  if (comprasAtivo) {
-    purchasePanel.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
 }
 
 function atualizarTipoCompra(tipo) {
