@@ -20,16 +20,20 @@
     </button>
   </header>
 
-  <nav class="trade-nav" aria-label="Tipos de compra">
-    <div class="trade-nav-inner purchase-tabs" role="tablist" aria-label="Tipo de compra">
-      <button class="purchase-tab" type="button" data-purchase-type="fiis">Compra de FIIs</button>
-      <button class="purchase-tab" type="button" data-purchase-type="acoes">Compra de acoes</button>
-      <button class="purchase-tab is-active" type="button" data-purchase-type="renda-fixa">CDB Inter</button>
+  <nav class="trade-nav" aria-label="Navegacao principal">
+    <div class="trade-nav-inner">
+      <button class="main-nav-tab is-active" type="button" data-main-view="inicio">Inicio</button>
+      <button class="main-nav-tab" type="button" data-main-view="compras">Compras</button>
+      <div class="purchase-nav purchase-tabs" id="purchase-nav" role="tablist" aria-label="Tipo de compra" hidden>
+        <button class="purchase-tab" type="button" data-purchase-type="fiis">FIIs</button>
+        <button class="purchase-tab" type="button" data-purchase-type="acoes">Acoes</button>
+        <button class="purchase-tab is-active" type="button" data-purchase-type="renda-fixa">CDB Inter</button>
+      </div>
     </div>
   </nav>
 
-  <main class="layout">
-    <section class="panel">
+  <main class="layout is-home" id="main-layout">
+    <section class="panel purchase-panel" id="purchase-panel" hidden>
       <div class="section-title">
         <h2 id="form-title">Nova compra</h2>
         <span id="connection-status">Conectando...</span>

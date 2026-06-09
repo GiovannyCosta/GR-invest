@@ -51,6 +51,7 @@ select {
 
 .trade-nav-inner {
   display: flex;
+  align-items: center;
   gap: 6px;
   width: min(1360px, calc(100% - 32px));
   margin: 0 auto;
@@ -90,6 +91,40 @@ h3 {
   gap: 20px;
   width: min(1360px, calc(100% - 32px));
   margin: 18px auto 40px;
+}
+
+.layout.is-home {
+  grid-template-columns: 1fr;
+}
+
+.purchase-panel {
+  align-self: start;
+}
+
+.main-nav-tab {
+  min-height: 48px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0 16px;
+}
+
+.main-nav-tab:hover,
+.main-nav-tab.is-active {
+  border-color: #dce4eb;
+  color: var(--ink);
+}
+
+.purchase-nav {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
 }
 
 .panel {
@@ -906,6 +941,23 @@ body {
   background: transparent;
   color: var(--muted);
   padding: 0 16px;
+}
+
+@media (max-width: 680px) {
+  .trade-nav-inner {
+    align-items: stretch;
+  }
+
+  .purchase-nav {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .main-nav-tab,
+  .trade-nav .purchase-tab {
+    padding: 0 12px;
+  }
 }
 
 .trade-nav .purchase-tab:hover,

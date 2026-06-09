@@ -51,6 +51,9 @@ const inputSenha = document.getElementById("input-senha");
 const senhaWrapper = document.getElementById("senha-wrapper");
 const spanPrecoAtual = document.getElementById("current-price");
 const formCompra = document.getElementById("form-compra");
+const mainLayout = document.getElementById("main-layout");
+const purchasePanel = document.getElementById("purchase-panel");
+const purchaseNav = document.getElementById("purchase-nav");
 const formTitle = document.getElementById("form-title");
 const btnSubmit = document.getElementById("btn-submit");
 const btnCancelEdit = document.getElementById("btn-cancel-edit");
@@ -99,6 +102,7 @@ const patrimonioTipo = document.getElementById("patrimonio-tipo");
 const canvasPatrimonio = document.getElementById("grafico-patrimonio");
 const ctxPatrimonio = canvasPatrimonio.getContext("2d");
 const tooltipPatrimonio = document.getElementById("patrimonio-tooltip");
+const mainNavTabs = document.querySelectorAll("[data-main-view]");
 const purchaseTabs = document.querySelectorAll("[data-purchase-type]");
 const cdbProductCard = document.getElementById("cdb-product-card");
 const tickerWrapper = document.getElementById("ticker-wrapper");
@@ -121,6 +125,21 @@ function atualizarAbaGrafico(aba) {
   chartViewFiis.hidden = aba !== "fiis";
   chartViewCompradores.hidden = aba !== "compradores";
   renderizarGraficos();
+}
+
+function atualizarTelaPrincipal(tela) {
+  const comprasAtivo = tela === "compras";
+
+  mainNavTabs.forEach((tab) => {
+    tab.classList.toggle("is-active", tab.dataset.mainView === tela);
+  });
+  purchasePanel.hidden = !comprasAtivo;
+  purchaseNav.hidden = !comprasAtivo;
+  mainLayout.classList.toggle("is-home", !comprasAtivo);
+
+  if (comprasAtivo) {
+    purchasePanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 function atualizarTipoCompra(tipo) {
@@ -331,6 +350,7 @@ function entrarModoEdicao(id) {
   const compra = carteira.find((item) => item.id === id);
   if (!compra) return;
 
+  atualizarTelaPrincipal("compras");
   compraEmEdicaoId = id;
   atualizarTipoCompra(compra.ticker === "CDBINTERDI" ? "renda-fixa" : compra.ticker.endsWith("11") ? "fiis" : "acoes");
   formTitle.textContent = "Editar compra";
@@ -1710,10 +1730,14 @@ inputTicker.addEventListener("blur", () => {
   if (tipoCompra !== "renda-fixa") buscarCotacao(inputTicker.value);
 });
 inputComprador.addEventListener("change", atualizarCampoSenha);
+mainNavTabs.forEach((tab) => tab.addEventListener("click", () => atualizarTelaPrincipal(tab.dataset.mainView)));
 chartTabs.forEach((tab) => tab.addEventListener("click", () => atualizarAbaGrafico(tab.dataset.chartView)));
 patrimonioPeriodo.addEventListener("change", renderizarEvolucaoPatrimonio);
 patrimonioTipo.addEventListener("change", renderizarEvolucaoPatrimonio);
-purchaseTabs.forEach((tab) => tab.addEventListener("click", () => atualizarTipoCompra(tab.dataset.purchaseType)));
+purchaseTabs.forEach((tab) => tab.addEventListener("click", () => {
+  atualizarTelaPrincipal("compras");
+  atualizarTipoCompra(tab.dataset.purchaseType);
+}));
 formCompra.addEventListener("submit", salvarCompra);
 btnCancelEdit.addEventListener("click", () => {
   formCompra.reset();
@@ -1749,6 +1773,7 @@ comprasBody.addEventListener("click", (event) => {
 });
 
 definirDataPadrao();
+atualizarTelaPrincipal("inicio");
 atualizarTipoCompra("renda-fixa");
 atualizarCampoSenha();
 iniciarSupabase();
