@@ -12,6 +12,7 @@ let barrasPatrimonio = [];
 let compraEmEdicaoId = null;
 let cotacoesAtuais = {};
 let proventosRecebidos = [];
+let cdiDiarioAtual = null;
 let tipoCompra = "renda-fixa";
 let abaGrafico = "geral";
 
@@ -165,6 +166,7 @@ async function carregarCarteira() {
   atualizarDashboard();
   atualizarCotacoesCarteira();
   atualizarProventos();
+  atualizarCdi();
 }
 
 async function buscarCotacao(ticker) {
@@ -662,6 +664,25 @@ async function atualizarProventos() {
   }
 }
 
+async function atualizarCdi() {
+  try {
+    const resposta = await fetch("https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados/ultimos/15?formato=json");
+    const dados = await resposta.json();
+    const ultimo = [...(dados || [])].reverse().find((item) => Number.isFinite(lerNumero(item.valor)));
+
+    if (!resposta.ok || !ultimo) {
+      throw new Error("CDI indisponivel");
+    }
+
+    cdiDiarioAtual = lerNumero(ultimo.valor);
+    renderizarAtivosAoVivo();
+  } catch (error) {
+    console.error("Erro ao buscar CDI:", error);
+    cdiDiarioAtual = null;
+    renderizarAtivosAoVivo();
+  }
+}
+
 function calcularProventosRecebidos(dividendos, hoje) {
   return dividendos
     .map((dividendo) => {
@@ -753,6 +774,69 @@ function formatarDataObjeto(data) {
   return new Intl.DateTimeFormat("pt-BR").format(data);
 }
 
+function calcularCdbInter(item) {
+  const hoje = new Date();
+  const dataCompra = new Date(`${item.data}T00:00:00`);
+  const principal = item.precoCompra * item.quantidade;
+  const diasCorridos = Math.max(0, Math.floor((hoje - dataCompra) / 86400000));
+  const diasUteis = contarDiasUteis(dataCompra, hoje);
+  const cdiDiario = Number.isFinite(cdiDiarioAtual) ? cdiDiarioAtual : 0;
+  const taxaDiaria = (cdiDiario / 100) * 1.02;
+  const rendimentoBruto = principal * (Math.pow(1 + taxaDiaria, diasUteis) - 1);
+  const iof = rendimentoBruto * obterAliquotaIof(diasCorridos);
+  const baseIr = Math.max(0, rendimentoBruto - iof);
+  const ir = baseIr * obterAliquotaIr(diasCorridos);
+  const rendimentoLiquido = Math.max(0, rendimentoBruto - iof - ir);
+
+  return {
+    principal,
+    diasCorridos,
+    diasUteis,
+    cdiDiario,
+    rendimentoBruto,
+    iof,
+    ir,
+    rendimentoLiquido,
+    valorLiquido: principal + rendimentoLiquido
+  };
+}
+
+function contarDiasUteis(inicio, fim) {
+  let total = 0;
+  const data = new Date(inicio);
+
+  while (data <= fim) {
+    const dia = data.getDay();
+
+    if (dia !== 0 && dia !== 6) {
+      total += 1;
+    }
+
+    data.setDate(data.getDate() + 1);
+  }
+
+  return Math.max(0, total - 1);
+}
+
+function obterAliquotaIof(diasCorridos) {
+  const tabela = [
+    0.96, 0.93, 0.90, 0.86, 0.83, 0.80, 0.76, 0.73, 0.70, 0.66,
+    0.63, 0.60, 0.56, 0.53, 0.50, 0.46, 0.43, 0.40, 0.36, 0.33,
+    0.30, 0.26, 0.23, 0.20, 0.16, 0.13, 0.10, 0.06, 0.03
+  ];
+
+  if (diasCorridos <= 0) return 0.96;
+  if (diasCorridos >= 30) return 0;
+  return tabela[diasCorridos - 1] || 0;
+}
+
+function obterAliquotaIr(diasCorridos) {
+  if (diasCorridos <= 180) return 0.225;
+  if (diasCorridos <= 360) return 0.20;
+  if (diasCorridos <= 720) return 0.175;
+  return 0.15;
+}
+
 function renderizarAtivosAoVivo() {
   const dados = obterResumoPorTicker();
   assetLiveList.innerHTML = "";
@@ -765,13 +849,32 @@ function renderizarAtivosAoVivo() {
   dados.forEach((item) => {
     const rendaFixa = item.ticker === "CDBINTERDI";
     const precoMedio = item.quantidade ? item.total / item.quantidade : 0;
-    const precoMercado = rendaFixa ? precoMedio : cotacoesAtuais[item.ticker];
+    const cdb = rendaFixa ? calcularCdbInter(item) : null;
+    const precoMercado = rendaFixa ? cdb.valorLiquido : cotacoesAtuais[item.ticker];
     const temMercado = rendaFixa || (Number.isFinite(precoMercado) && precoMercado > 0);
-    const valorMercado = temMercado ? precoMercado * item.quantidade : null;
-    const ganho = rendaFixa ? 0 : temMercado ? valorMercado - item.total : null;
-    const ganhoPercentual = rendaFixa ? 0 : temMercado && item.total ? (ganho / item.total) * 100 : null;
+    const valorMercado = rendaFixa ? cdb.valorLiquido : temMercado ? precoMercado * item.quantidade : null;
+    const ganho = rendaFixa ? cdb.rendimentoLiquido : temMercado ? valorMercado - item.total : null;
+    const ganhoPercentual = rendaFixa ? (item.total ? (ganho / item.total) * 100 : 0) : temMercado && item.total ? (ganho / item.total) * 100 : null;
     const variacaoClasse = ganho === null ? "" : ganho >= 0 ? "positive" : "negative";
     const sinal = ganho !== null && ganho > 0 ? "+" : "";
+    const detalhesCdb = rendaFixa ? `
+        <div>
+          <span>IR estimado</span>
+          <strong>${dinheiro.format(cdb.ir)}</strong>
+        </div>
+        <div>
+          <span>IOF estimado</span>
+          <strong>${dinheiro.format(cdb.iof)}</strong>
+        </div>
+        <div>
+          <span>CDI diario</span>
+          <strong>${Number.isFinite(cdiDiarioAtual) ? `${cdb.cdiDiario.toFixed(6)}%` : "Aguardando"}</strong>
+        </div>
+        <div>
+          <span>Dias uteis</span>
+          <strong>${cdb.diasUteis}</strong>
+        </div>
+      ` : "";
     const card = document.createElement("article");
 
     card.className = "asset-live-card";
@@ -799,9 +902,10 @@ function renderizarAtivosAoVivo() {
           <strong>${dinheiro.format(precoMedio)}</strong>
         </div>
         <div>
-          <span>${rendaFixa ? "Valor aplicado" : "Preco de mercado atual"}</span>
+          <span>${rendaFixa ? "Valor liquido atual" : "Preco de mercado atual"}</span>
           <strong>${temMercado ? dinheiro.format(precoMercado) : "Aguardando"}</strong>
         </div>
+        ${detalhesCdb}
       </div>
     `;
 
