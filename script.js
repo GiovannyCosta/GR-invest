@@ -69,6 +69,8 @@ const proventosStatus = document.getElementById("proventos-status");
 const proventosLista = document.getElementById("proventos-lista");
 const proventosFuturosStatus = document.getElementById("proventos-futuros-status");
 const proventosFuturosLista = document.getElementById("proventos-futuros-lista");
+const proventosEstimadosStatus = document.getElementById("proventos-estimados-status");
+const proventosEstimadosLista = document.getElementById("proventos-estimados-lista");
 const assetLiveStatus = document.getElementById("asset-live-status");
 const assetLiveList = document.getElementById("asset-live-list");
 const btnRefresh = document.getElementById("btn-refresh");
@@ -842,6 +844,7 @@ function obterQuantidadeAtual(ticker) {
 function renderizarProventos() {
   proventosLista.innerHTML = "";
   proventosFuturosLista.innerHTML = "";
+  proventosEstimadosLista.innerHTML = "";
 
   if (!proventosRecebidos.length) {
     proventosLista.innerHTML = '<p class="empty-chart">Sem proventos recebidos para as compras elegiveis.</p>';
@@ -882,6 +885,69 @@ function renderizarProventos() {
       proventosFuturosLista.appendChild(row);
       });
   }
+
+  renderizarProventosEstimados();
+}
+
+function renderizarProventosEstimados() {
+  const estimativas = calcularProventosEstimados();
+  const totalEstimado = estimativas.reduce((soma, item) => soma + item.total, 0);
+
+  proventosEstimadosStatus.textContent = `Total estimado: ${dinheiro.format(totalEstimado)}`;
+
+  if (!estimativas.length) {
+    proventosEstimadosLista.innerHTML = '<p class="empty-chart">Sem historico suficiente para estimar os proximos proventos.</p>';
+    return;
+  }
+
+  estimativas.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "income-row";
+    row.innerHTML = `
+      <div>
+        <strong>${escaparHtml(item.ticker)} - ${formatarDataObjeto(item.dataPagamento)}</strong>
+        <span>Estimado pelo ultimo pagamento: ${dinheiro.format(item.ultimoTotal)}${item.quantidade ? ` - ${item.quantidade} cotas atuais` : ""}</span>
+      </div>
+      <strong>${dinheiro.format(item.total)}</strong>
+    `;
+    proventosEstimadosLista.appendChild(row);
+  });
+}
+
+function calcularProventosEstimados() {
+  const fiis = obterResumoPorTicker()
+    .filter((item) => obterClasse(item.ticker) === "FIIs")
+    .map((item) => item.ticker);
+  const hoje = new Date();
+
+  return fiis
+    .map((ticker) => {
+      const ultimo = proventosRecebidos
+        .filter((item) => item.ticker === ticker)
+        .sort((a, b) => b.dataPagamento - a.dataPagamento)[0];
+
+      if (!ultimo) {
+        return null;
+      }
+
+      const proximaData = new Date(ultimo.dataPagamento);
+      proximaData.setMonth(proximaData.getMonth() + 1);
+
+      while (proximaData <= hoje) {
+        proximaData.setMonth(proximaData.getMonth() + 1);
+      }
+
+      return {
+        ticker,
+        dataPagamento: proximaData,
+        quantidade: obterQuantidadeAtual(ticker),
+        ultimoTotal: ultimo.total,
+        total: ultimo.total,
+        fonte: "estimado"
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.dataPagamento - b.dataPagamento);
 }
 
 function criarDataBrapi(valor) {
