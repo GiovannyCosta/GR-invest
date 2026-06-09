@@ -631,6 +631,7 @@ function obterResumoPorTicker() {
   return Object.values(mapa)
     .map((item) => ({
       ...item,
+      segmento: obterSegmento(item.ticker),
       percentual: totalCarteira ? (item.total / totalCarteira) * 100 : 0
     }))
     .sort((a, b) => b.total - a.total);
@@ -661,6 +662,7 @@ async function atualizarCotacoesCarteira() {
   }, {});
 
   assetLiveStatus.textContent = "Mercado atualizado";
+  renderizarGraficos();
   renderizarAtivosAoVivo();
   renderizarEvolucaoPatrimonio();
 }
@@ -676,7 +678,11 @@ async function buscarCotacaoSilenciosa(ticker) {
       return null;
     }
 
-    return Number(resultado.regularMarketPrice || 0);
+    return {
+      preco: Number(resultado.regularMarketPrice || 0),
+      segmento: obterSegmentoDaApi(ticker, resultado),
+      nome: resultado.longName || resultado.shortName || ticker
+    };
   } catch (error) {
     console.error(`Erro ao buscar cotacao de ${ticker}:`, error);
     return null;
@@ -1001,7 +1007,7 @@ function criarCardAtivoAoVivo(item) {
   const rendaFixa = item.ticker === "CDBINTERDI";
   const precoMedio = item.quantidade ? item.total / item.quantidade : 0;
   const cdb = rendaFixa ? calcularCdbInter(item) : null;
-  const precoMercado = rendaFixa ? cdb.valorLiquido : cotacoesAtuais[item.ticker];
+  const precoMercado = rendaFixa ? cdb.valorLiquido : obterPrecoAtual(item.ticker);
   const temMercado = rendaFixa || (Number.isFinite(precoMercado) && precoMercado > 0);
   const valorMercado = rendaFixa ? cdb.valorLiquido : temMercado ? precoMercado * item.quantidade : null;
   const ganho = rendaFixa ? cdb.rendimentoLiquido : temMercado ? valorMercado - item.total : null;
@@ -1370,7 +1376,7 @@ function calcularPatrimonioDoMes(mes, tipoSelecionado) {
       return soma + item.precoCompra * item.quantidade;
     }
 
-    const cotacao = cotacoesAtuais[item.ticker];
+    const cotacao = obterPrecoAtual(item.ticker);
     const precoAtual = Number.isFinite(cotacao) && cotacao > 0 ? cotacao : item.precoCompra;
     return soma + precoAtual * item.quantidade;
   }, 0);
@@ -1617,12 +1623,68 @@ function obterClasse(ticker) {
 }
 
 function obterSegmento(ticker) {
+  const segmentoMercado = cotacoesAtuais[ticker]?.segmento;
+
+  if (segmentoMercado) {
+    return segmentoMercado;
+  }
+
   if (ticker === "CDBINTERDI") return "CDB Inter LIQ. diaria";
-  if (ticker.endsWith("11")) return "FII, ETF ou Unit";
+  if (ticker.endsWith("11")) return obterSegmentoFiiConhecido(ticker) || "FII";
   if (ticker.endsWith("34")) return "BDR";
   if (ticker.endsWith("3")) return "Acao ordinaria";
   if (ticker.endsWith("4")) return "Acao preferencial";
   return "Ativo";
+}
+
+function obterPrecoAtual(ticker) {
+  const cotacao = cotacoesAtuais[ticker];
+
+  if (typeof cotacao === "number") {
+    return cotacao;
+  }
+
+  return cotacao?.preco;
+}
+
+function obterSegmentoDaApi(ticker, dados) {
+  const campos = [
+    dados.sector,
+    dados.sectorKey,
+    dados.segment,
+    dados.segmento,
+    dados.industry,
+    dados.industryKey,
+    dados.fundamentalist?.sector,
+    dados.fundamentalist?.segment,
+    dados.fundamentalist?.subsector
+  ];
+  const segmentoApi = campos.find((valor) => typeof valor === "string" && valor.trim());
+
+  return normalizarSegmentoFii(segmentoApi) || obterSegmentoFiiConhecido(ticker) || (ticker.endsWith("11") ? "FII" : "");
+}
+
+function normalizarSegmentoFii(segmento) {
+  const valor = String(segmento || "").trim();
+  const chave = valor.toLowerCase();
+
+  if (!valor) return "";
+  if (chave.includes("real estate") || chave.includes("financial")) return "";
+  if (chave.includes("log")) return "Logistico";
+  if (chave.includes("receb") || chave.includes("papel") || chave.includes("cri")) return "Papel";
+  if (chave.includes("laje") || chave.includes("tijolo") || chave.includes("shopping") || chave.includes("galp")) return "Tijolo";
+  if (chave.includes("fundo imobili")) return "FII";
+  return valor;
+}
+
+function obterSegmentoFiiConhecido(ticker) {
+  const segmentos = {
+    CPTS11: "Papel",
+    GGRC11: "Logistico",
+    ALZR11: "Tijolo"
+  };
+
+  return segmentos[ticker] || "";
 }
 
 function criarIconeTicker(ticker) {
