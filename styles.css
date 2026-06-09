@@ -94,6 +94,7 @@ h3 {
 }
 
 .patrimonio-panel {
+  position: relative;
   grid-column: 1 / -1;
   overflow: hidden;
   background: #1d222b;
@@ -189,11 +190,51 @@ h3 {
   background: #8dddcf;
 }
 
+.legend-deficit {
+  background: #cf3f4b;
+}
+
 #grafico-patrimonio {
   display: block;
   width: 100%;
   height: auto;
   min-height: 260px;
+  cursor: crosshair;
+}
+
+.patrimonio-tooltip {
+  position: absolute;
+  z-index: 6;
+  display: none;
+  width: min(280px, calc(100% - 32px));
+  padding: 12px;
+  border: 1px solid #3a414f;
+  border-radius: 8px;
+  background: rgba(22, 27, 35, 0.96);
+  color: #edf2f5;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.patrimonio-tooltip.is-visible {
+  display: grid;
+  gap: 8px;
+}
+
+.patrimonio-tooltip strong {
+  font-size: 14px;
+}
+
+.patrimonio-tooltip span,
+.patrimonio-tooltip small {
+  color: #b9c3ce;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.patrimonio-tooltip-list {
+  display: grid;
+  gap: 5px;
 }
 
 .section-title {

@@ -6,6 +6,7 @@ const supabaseKey = config.SUPABASE_ANON_KEY || "";
 let db = null;
 let carteira = [];
 let fatiasPizza = [];
+let barrasPatrimonio = [];
 let compraEmEdicaoId = null;
 let cotacoesAtuais = {};
 let tipoCompra = "renda-fixa";
@@ -53,6 +54,7 @@ const patrimonioPeriodo = document.getElementById("patrimonio-periodo");
 const patrimonioTipo = document.getElementById("patrimonio-tipo");
 const canvasPatrimonio = document.getElementById("grafico-patrimonio");
 const ctxPatrimonio = canvasPatrimonio.getContext("2d");
+const tooltipPatrimonio = document.getElementById("patrimonio-tooltip");
 const purchaseTabs = document.querySelectorAll("[data-purchase-type]");
 const cdbProductCard = document.getElementById("cdb-product-card");
 const tickerWrapper = document.getElementById("ticker-wrapper");
@@ -735,16 +737,23 @@ function renderizarGraficoBarras(dados, container = barrasCarteira) {
 function renderizarEvolucaoPatrimonio() {
   const meses = obterMesesEvolucao(Number(patrimonioPeriodo.value || 12));
   const tipoSelecionado = patrimonioTipo.value;
-  const dados = meses.map((mes) => calcularPatrimonioDoMes(mes, tipoSelecionado));
+  const dadosBase = meses.map((mes) => calcularPatrimonioDoMes(mes, tipoSelecionado));
+  const dados = aplicarMetricaDeAporte(dadosBase);
   const largura = canvasPatrimonio.width;
   const altura = canvasPatrimonio.height;
   const margem = { top: 26, right: 28, bottom: 58, left: 72 };
   const areaLargura = largura - margem.left - margem.right;
   const areaAltura = altura - margem.top - margem.bottom;
   const maiorValor = Math.max(1000, ...dados.map((item) => item.aplicado + item.ganho));
+  const maiorDeficit = Math.max(0, ...dados.map((item) => item.deficitAporte));
   const topoEscala = Math.ceil(maiorValor / 1000) * 1000;
+  const fundoEscala = maiorDeficit ? Math.ceil(maiorDeficit / 1000) * 1000 : 0;
+  const totalEscala = topoEscala + fundoEscala;
+  const yZero = margem.top + (topoEscala / totalEscala) * areaAltura;
   const linhas = 5;
 
+  barrasPatrimonio = [];
+  esconderTooltipPatrimonio();
   ctxPatrimonio.clearRect(0, 0, largura, altura);
   ctxPatrimonio.fillStyle = "#1d222b";
   ctxPatrimonio.fillRect(0, 0, largura, altura);
@@ -752,13 +761,13 @@ function renderizarEvolucaoPatrimonio() {
   ctxPatrimonio.textBaseline = "middle";
 
   for (let index = 0; index <= linhas; index += 1) {
-    const valor = topoEscala - (topoEscala / linhas) * index;
-    const y = margem.top + (areaAltura / linhas) * index;
+    const valor = topoEscala - (totalEscala / linhas) * index;
+    const y = valorParaYPatrimonio(valor, margem, areaAltura, topoEscala, totalEscala);
 
     ctxPatrimonio.beginPath();
     ctxPatrimonio.moveTo(margem.left, y);
     ctxPatrimonio.lineTo(largura - margem.right, y);
-    ctxPatrimonio.strokeStyle = index === linhas ? "#4a5260" : "#303744";
+    ctxPatrimonio.strokeStyle = Math.abs(valor) < 1 ? "#4a5260" : "#303744";
     ctxPatrimonio.lineWidth = 1;
     ctxPatrimonio.stroke();
     ctxPatrimonio.fillStyle = "#aeb8c4";
@@ -766,15 +775,44 @@ function renderizarEvolucaoPatrimonio() {
     ctxPatrimonio.fillText(formatarNumeroGrafico(valor), margem.left - 12, y);
   }
 
+  ctxPatrimonio.beginPath();
+  ctxPatrimonio.moveTo(margem.left, yZero);
+  ctxPatrimonio.lineTo(largura - margem.right, yZero);
+  ctxPatrimonio.strokeStyle = "#6a7280";
+  ctxPatrimonio.lineWidth = 1.5;
+  ctxPatrimonio.stroke();
+
   const passo = areaLargura / dados.length;
   const larguraBarra = Math.min(48, passo * 0.66);
 
   dados.forEach((item, index) => {
     const x = margem.left + passo * index + (passo - larguraBarra) / 2;
-    const aplicadoAltura = (item.aplicado / topoEscala) * areaAltura;
-    const ganhoAltura = (item.ganho / topoEscala) * areaAltura;
-    const yAplicado = margem.top + areaAltura - aplicadoAltura;
+    const aplicadoAltura = (item.aplicado / totalEscala) * areaAltura;
+    const ganhoAltura = (item.ganho / totalEscala) * areaAltura;
+    const deficitAltura = (item.deficitAporte / totalEscala) * areaAltura;
+    const yAplicado = yZero - aplicadoAltura;
     const yGanho = yAplicado - ganhoAltura;
+    const segmentos = [];
+
+    if (aplicadoAltura > 0) {
+      segmentos.push({ x, y: yAplicado, largura: larguraBarra, altura: aplicadoAltura });
+    }
+
+    if (ganhoAltura > 0) {
+      segmentos.push({ x, y: yGanho, largura: larguraBarra, altura: ganhoAltura });
+    }
+
+    if (deficitAltura > 0) {
+      segmentos.push({ x, y: yZero, largura: larguraBarra, altura: deficitAltura });
+    }
+
+    barrasPatrimonio.push({
+      ...item,
+      xCentro: x + larguraBarra / 2,
+      yTopo: Math.min(yAplicado, yGanho),
+      yBase: yZero,
+      segmentos
+    });
 
     ctxPatrimonio.fillStyle = "#28a977";
     desenharBarraArredondada(ctxPatrimonio, x, yAplicado, larguraBarra, aplicadoAltura, ganhoAltura > 0 ? 0 : 5);
@@ -782,6 +820,11 @@ function renderizarEvolucaoPatrimonio() {
     if (ganhoAltura > 0) {
       ctxPatrimonio.fillStyle = "#8dddcf";
       desenharBarraArredondada(ctxPatrimonio, x, yGanho, larguraBarra, ganhoAltura, 5);
+    }
+
+    if (deficitAltura > 0) {
+      ctxPatrimonio.fillStyle = "#cf3f4b";
+      desenharBarraArredondada(ctxPatrimonio, x, yZero, larguraBarra, deficitAltura, 5);
     }
 
     ctxPatrimonio.save();
@@ -805,11 +848,26 @@ function obterMesesEvolucao(totalMeses) {
   const agora = new Date();
   const meses = [];
 
+  if (totalMeses === 12) {
+    for (let mes = 0; mes < 12; mes += 1) {
+      meses.push({
+        ano: agora.getFullYear(),
+        mes,
+        inicio: new Date(agora.getFullYear(), mes, 1),
+        fim: new Date(agora.getFullYear(), mes + 1, 0),
+        rotulo: `${String(mes + 1).padStart(2, "0")}/${String(agora.getFullYear()).slice(-2)}`
+      });
+    }
+
+    return meses;
+  }
+
   for (let index = totalMeses - 1; index >= 0; index -= 1) {
     const data = new Date(agora.getFullYear(), agora.getMonth() - index, 1);
     meses.push({
       ano: data.getFullYear(),
       mes: data.getMonth(),
+      inicio: data,
       fim: new Date(data.getFullYear(), data.getMonth() + 1, 0),
       rotulo: `${String(data.getMonth() + 1).padStart(2, "0")}/${String(data.getFullYear()).slice(-2)}`
     });
@@ -819,13 +877,37 @@ function obterMesesEvolucao(totalMeses) {
 }
 
 function calcularPatrimonioDoMes(mes, tipoSelecionado) {
+  const hoje = new Date();
+
+  if (mes.inicio > hoje) {
+    return {
+      rotulo: mes.rotulo,
+      aplicado: 0,
+      ganho: 0,
+      total: 0,
+      aporteMensal: 0,
+      tiposDoMes: [],
+      tipos: [],
+      periodoDisponivel: false
+    };
+  }
+
   const comprasDoMes = carteira.filter((item) => {
     const dataCompra = new Date(`${item.data}T00:00:00`);
     const classe = obterClasse(item.ticker);
 
     return dataCompra <= mes.fim && (tipoSelecionado === "todos" || classe === tipoSelecionado);
   });
+  const comprasNoMes = carteira.filter((item) => {
+    const dataCompra = new Date(`${item.data}T00:00:00`);
+    const classe = obterClasse(item.ticker);
+
+    return dataCompra >= mes.inicio &&
+      dataCompra <= mes.fim &&
+      (tipoSelecionado === "todos" || classe === tipoSelecionado);
+  });
   const aplicado = comprasDoMes.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const aporteMensal = comprasNoMes.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
   const valorMercado = comprasDoMes.reduce((soma, item) => {
     if (item.ticker === "CDBINTERDI") {
       return soma + item.precoCompra * item.quantidade;
@@ -835,12 +917,137 @@ function calcularPatrimonioDoMes(mes, tipoSelecionado) {
     const precoAtual = Number.isFinite(cotacao) && cotacao > 0 ? cotacao : item.precoCompra;
     return soma + precoAtual * item.quantidade;
   }, 0);
+  const tipos = obterTiposComprados(comprasDoMes);
 
   return {
     rotulo: mes.rotulo,
     aplicado,
-    ganho: Math.max(0, valorMercado - aplicado)
+    ganho: Math.max(0, valorMercado - aplicado),
+    total: valorMercado,
+    aporteMensal,
+    tiposDoMes: obterTiposComprados(comprasNoMes),
+    tipos,
+    periodoDisponivel: true
   };
+}
+
+function aplicarMetricaDeAporte(dados) {
+  let maiorAporteAnterior = 0;
+
+  return dados.map((item) => {
+    const deficitAporte = item.periodoDisponivel && maiorAporteAnterior > 0 && item.aporteMensal < maiorAporteAnterior
+      ? maiorAporteAnterior - item.aporteMensal
+      : 0;
+
+    if (item.aporteMensal > maiorAporteAnterior) {
+      maiorAporteAnterior = item.aporteMensal;
+    }
+
+    return {
+      ...item,
+      deficitAporte,
+      metricaAporte: maiorAporteAnterior
+    };
+  });
+}
+
+function valorParaYPatrimonio(valor, margem, areaAltura, topoEscala, totalEscala) {
+  return margem.top + ((topoEscala - valor) / totalEscala) * areaAltura;
+}
+
+function obterTiposComprados(compras) {
+  const mapa = compras.reduce((resultado, item) => {
+    const tipo = obterClasse(item.ticker);
+    const total = item.precoCompra * item.quantidade;
+
+    if (!resultado[tipo]) {
+      resultado[tipo] = {
+        tipo,
+        total: 0,
+        tickers: new Set()
+      };
+    }
+
+    resultado[tipo].total += total;
+    resultado[tipo].tickers.add(item.ticker);
+    return resultado;
+  }, {});
+
+  return Object.values(mapa)
+    .map((item) => ({
+      tipo: item.tipo,
+      total: item.total,
+      tickers: [...item.tickers].sort()
+    }))
+    .sort((a, b) => b.total - a.total);
+}
+
+function mostrarTooltipPatrimonio(event, barra) {
+  const rectCanvas = canvasPatrimonio.getBoundingClientRect();
+  const rectPainel = canvasPatrimonio.closest(".patrimonio-panel").getBoundingClientRect();
+  const tiposDoMesHtml = barra.tiposDoMes.length
+    ? barra.tiposDoMes
+        .map((item) => `
+          <span>${escaparHtml(item.tipo)}: ${dinheiro.format(item.total)} (${escaparHtml(item.tickers.join(", "))})</span>
+        `)
+        .join("")
+    : "<span>Nenhuma compra neste mes.</span>";
+  const tiposAcumuladosHtml = barra.tipos.length
+    ? barra.tipos
+        .map((item) => `
+          <span>${escaparHtml(item.tipo)}: ${dinheiro.format(item.total)} (${escaparHtml(item.tickers.join(", "))})</span>
+        `)
+        .join("")
+    : "<span>Sem compras acumuladas ate este mes.</span>";
+  const deficitHtml = barra.deficitAporte > 0
+    ? `<span>Abaixo da metrica: ${dinheiro.format(barra.deficitAporte)}</span>`
+    : "";
+
+  tooltipPatrimonio.innerHTML = `
+    <strong>${escaparHtml(barra.rotulo)}</strong>
+    <span>Patrimonio estimado: ${dinheiro.format(barra.total)}</span>
+    <span>Valor aplicado: ${dinheiro.format(barra.aplicado)}</span>
+    <span>Ganho de capital: ${dinheiro.format(barra.ganho)}</span>
+    <span>Aporte do mes: ${dinheiro.format(barra.aporteMensal)}</span>
+    ${deficitHtml}
+    <small>Tipos comprados no mes</small>
+    <div class="patrimonio-tooltip-list">${tiposDoMesHtml}</div>
+    <small>Carteira acumulada</small>
+    <div class="patrimonio-tooltip-list">${tiposAcumuladosHtml}</div>
+  `;
+
+  tooltipPatrimonio.classList.add("is-visible");
+
+  const larguraTooltip = tooltipPatrimonio.offsetWidth;
+  const alturaTooltip = tooltipPatrimonio.offsetHeight;
+  const xDesejado = event.clientX - rectPainel.left + 14;
+  const yDesejado = rectCanvas.top - rectPainel.top + (barra.yTopo * rectCanvas.height) / canvasPatrimonio.height - 8;
+  const maxX = rectPainel.width - larguraTooltip - 12;
+  const maxY = rectPainel.height - alturaTooltip - 12;
+
+  tooltipPatrimonio.style.left = `${Math.max(12, Math.min(xDesejado, maxX))}px`;
+  tooltipPatrimonio.style.top = `${Math.max(12, Math.min(yDesejado, maxY))}px`;
+}
+
+function esconderTooltipPatrimonio() {
+  tooltipPatrimonio.classList.remove("is-visible");
+}
+
+function obterBarraPatrimonioNoMouse(event) {
+  const rect = canvasPatrimonio.getBoundingClientRect();
+  const escalaX = canvasPatrimonio.width / rect.width;
+  const escalaY = canvasPatrimonio.height / rect.height;
+  const x = (event.clientX - rect.left) * escalaX;
+  const y = (event.clientY - rect.top) * escalaY;
+
+  return barrasPatrimonio.find((barra) => (
+    barra.segmentos.some((segmento) => (
+      x >= segmento.x &&
+      x <= segmento.x + segmento.largura &&
+      y >= segmento.y &&
+      y <= segmento.y + segmento.altura
+    ))
+  ));
 }
 
 function desenharBarraArredondada(contexto, x, y, largura, altura, raio) {
@@ -1053,6 +1260,17 @@ canvas.addEventListener("mousemove", (event) => {
   mostrarTooltip(event, fatia);
 });
 canvas.addEventListener("mouseleave", esconderTooltip);
+canvasPatrimonio.addEventListener("mousemove", (event) => {
+  const barra = obterBarraPatrimonioNoMouse(event);
+
+  if (!barra) {
+    esconderTooltipPatrimonio();
+    return;
+  }
+
+  mostrarTooltipPatrimonio(event, barra);
+});
+canvasPatrimonio.addEventListener("mouseleave", esconderTooltipPatrimonio);
 comprasBody.addEventListener("click", (event) => {
   const botao = event.target.closest("[data-id]");
   if (!botao) return;
