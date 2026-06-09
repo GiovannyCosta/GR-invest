@@ -17,6 +17,26 @@ let cdiDiarioAtual = null;
 let tipoCompra = "renda-fixa";
 let abaGrafico = "geral";
 
+const saldoAntigoCdbInter = {
+  id: "saldo-antigo-cdb-inter",
+  ticker: "CDBINTERDI",
+  precoCompra: 2.77,
+  quantidade: 1,
+  data: "2026-04-09",
+  comprador: "Saldo antigo",
+  virtual: true
+};
+
+const cdbInterConfig = {
+  nome: "CDB POS DI LIQUIDEZ DIARIA",
+  emissor: "Banco Inter",
+  vencimento: "2028-05-29",
+  percentualCdi: 1,
+  valorMinimo: 1,
+  liquidez: "Imediato",
+  garantia: "FGC ate R$ 250 mil"
+};
+
 const historicoManualProventos = [
   { ticker: "CPTS11", dataPagamento: "2026-04-19", total: 4.50, fonte: "manual" },
   { ticker: "GGRC11", dataPagamento: "2026-04-30", total: 3.00, fonte: "manual" },
@@ -124,7 +144,7 @@ function atualizarTipoCompra(tipo) {
   if (rendaFixa) {
     inputTicker.value = "CDBINTERDI";
     document.getElementById("input-qtd").value = "1";
-    spanPrecoAtual.textContent = "102% do CDI";
+    spanPrecoAtual.textContent = "100% do CDI";
     inputPreco.placeholder = "0,00";
     return;
   }
@@ -354,6 +374,10 @@ function aplicarCompraNaTela(item) {
   carteira.unshift(compra);
 }
 
+function obterCarteiraComAjustes() {
+  return [...carteira, saldoAntigoCdbInter];
+}
+
 async function excluirCompra(id) {
   if (!db) return;
 
@@ -381,9 +405,10 @@ async function excluirCompra(id) {
 }
 
 function atualizarDashboard() {
-  const total = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
-  const quantidade = carteira.reduce((soma, item) => soma + item.quantidade, 0);
-  const tickersUnicos = new Set(carteira.map((item) => item.ticker)).size;
+  const carteiraAjustada = obterCarteiraComAjustes();
+  const total = carteiraAjustada.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const quantidade = carteiraAjustada.reduce((soma, item) => soma + item.quantidade, 0);
+  const tickersUnicos = new Set(carteiraAjustada.map((item) => item.ticker)).size;
   const totalRecebido = proventosRecebidos.reduce((soma, item) => soma + item.total, 0);
 
   totalInvestido.textContent = dinheiro.format(total);
@@ -403,7 +428,7 @@ function atualizarDashboard() {
 function renderizarTabela() {
   comprasBody.innerHTML = "";
 
-  carteira.forEach((item) => {
+  obterCarteiraComAjustes().forEach((item) => {
     const total = item.precoCompra * item.quantidade;
     const tr = document.createElement("tr");
 
@@ -420,6 +445,7 @@ function renderizarTabela() {
       <td>${formatarData(item.data)}</td>
       <td>${escaparHtml(item.comprador)}</td>
       <td>
+        ${item.virtual ? '<span class="virtual-row">Ajuste</span>' : `
         <button class="edit-button" type="button" data-action="edit" data-id="${item.id}" aria-label="Editar ${escaparHtml(item.ticker)}" title="Editar">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 20h9"/>
@@ -435,6 +461,7 @@ function renderizarTabela() {
             <path d="M14 11v5"/>
           </svg>
         </button>
+        `}
       </td>
     `;
 
@@ -446,7 +473,7 @@ function renderizarGraficos() {
   const dadosPorClasse = obterResumoPorClasse();
   const dadosFiis = obterResumoDeFiis();
   const dadosCompradores = obterResumoPorComprador();
-  const totalCarteira = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const totalCarteira = obterCarteiraComAjustes().reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
   const totalFiis = dadosFiis.reduce((soma, item) => soma + item.total, 0);
   const totalCompradores = dadosCompradores.reduce((soma, item) => soma + item.total, 0);
   const percentualFiis = totalCarteira ? (totalFiis / totalCarteira) * 100 : 0;
@@ -488,8 +515,9 @@ function renderizarGraficos() {
 }
 
 function obterResumoPorClasse() {
-  const totalCarteira = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
-  const mapa = carteira.reduce((resultado, item) => {
+  const carteiraAjustada = obterCarteiraComAjustes();
+  const totalCarteira = carteiraAjustada.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const mapa = carteiraAjustada.reduce((resultado, item) => {
     const ticker = obterClasse(item.ticker);
     const total = item.precoCompra * item.quantidade;
 
@@ -528,8 +556,9 @@ function obterResumoDeFiis() {
 }
 
 function obterResumoPorComprador() {
-  const totalCarteira = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
-  const mapa = carteira.reduce((resultado, item) => {
+  const carteiraAjustada = obterCarteiraComAjustes();
+  const totalCarteira = carteiraAjustada.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const mapa = carteiraAjustada.reduce((resultado, item) => {
     const comprador = normalizarComprador(item.comprador) || item.comprador || "Sem comprador";
     const total = item.precoCompra * item.quantidade;
 
@@ -558,8 +587,9 @@ function obterResumoPorComprador() {
 }
 
 function obterResumoPorTicker() {
-  const totalCarteira = carteira.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
-  const mapa = carteira.reduce((resultado, item) => {
+  const carteiraAjustada = obterCarteiraComAjustes();
+  const totalCarteira = carteiraAjustada.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const mapa = carteiraAjustada.reduce((resultado, item) => {
     const ticker = item.ticker;
     const total = item.precoCompra * item.quantidade;
 
@@ -569,13 +599,15 @@ function obterResumoPorTicker() {
         total: 0,
         quantidade: 0,
         segmento: obterSegmento(ticker),
-        compradores: {}
+        compradores: {},
+        aplicacoes: []
       };
     }
 
     resultado[ticker].total += total;
     resultado[ticker].quantidade += item.quantidade;
     resultado[ticker].compradores[item.comprador] = (resultado[ticker].compradores[item.comprador] || 0) + item.quantidade;
+    resultado[ticker].aplicacoes.push(item);
     return resultado;
   }, {});
 
@@ -844,29 +876,44 @@ function formatarDataObjeto(data) {
 }
 
 function calcularCdbInter(item) {
+  const aplicacoes = item.aplicacoes && item.aplicacoes.length ? item.aplicacoes : [item];
   const hoje = new Date();
-  const dataCompra = new Date(`${item.data}T00:00:00`);
-  const principal = item.precoCompra * item.quantidade;
-  const diasCorridos = Math.max(0, Math.floor((hoje - dataCompra) / 86400000));
-  const diasUteis = contarDiasUteis(dataCompra, hoje);
   const cdiDiario = Number.isFinite(cdiDiarioAtual) ? cdiDiarioAtual : 0;
-  const taxaDiaria = (cdiDiario / 100) * 1.02;
-  const rendimentoBruto = principal * (Math.pow(1 + taxaDiaria, diasUteis) - 1);
-  const iof = rendimentoBruto * obterAliquotaIof(diasCorridos);
-  const baseIr = Math.max(0, rendimentoBruto - iof);
-  const ir = baseIr * obterAliquotaIr(diasCorridos);
-  const rendimentoLiquido = Math.max(0, rendimentoBruto - iof - ir);
+  const taxaDiaria = (cdiDiario / 100) * cdbInterConfig.percentualCdi;
+  const totais = aplicacoes.reduce((resultado, aplicacao) => {
+    const dataCompra = new Date(`${aplicacao.data}T00:00:00`);
+    const principal = aplicacao.precoCompra * aplicacao.quantidade;
+    const diasCorridos = Number.isNaN(dataCompra.getTime()) ? 0 : Math.max(0, Math.floor((hoje - dataCompra) / 86400000));
+    const diasUteis = Number.isNaN(dataCompra.getTime()) ? 0 : contarDiasUteis(dataCompra, hoje);
+    const rendimentoBruto = principal * (Math.pow(1 + taxaDiaria, diasUteis) - 1);
+    const iof = rendimentoBruto * obterAliquotaIof(diasCorridos);
+    const baseIr = Math.max(0, rendimentoBruto - iof);
+    const ir = baseIr * obterAliquotaIr(diasCorridos);
+    const rendimentoLiquido = Math.max(0, rendimentoBruto - iof - ir);
+
+    resultado.principal += principal;
+    resultado.diasCorridos = Math.max(resultado.diasCorridos, diasCorridos);
+    resultado.diasUteis += diasUteis;
+    resultado.rendimentoBruto += rendimentoBruto;
+    resultado.iof += iof;
+    resultado.ir += ir;
+    resultado.rendimentoLiquido += rendimentoLiquido;
+    return resultado;
+  }, {
+    principal: 0,
+    diasCorridos: 0,
+    diasUteis: 0,
+    rendimentoBruto: 0,
+    iof: 0,
+    ir: 0,
+    rendimentoLiquido: 0
+  });
 
   return {
-    principal,
-    diasCorridos,
-    diasUteis,
+    ...totais,
     cdiDiario,
-    rendimentoBruto,
-    iof,
-    ir,
-    rendimentoLiquido,
-    valorLiquido: principal + rendimentoLiquido
+    valorBruto: totais.principal + totais.rendimentoBruto,
+    valorLiquido: totais.principal + totais.rendimentoLiquido
   };
 }
 
@@ -957,7 +1004,7 @@ function renderizarAtivosAoVivo() {
       </div>
       <div class="asset-live-grid">
         <div>
-          <span>Quantidade</span>
+          <span>${rendaFixa ? "Aplicacoes" : "Quantidade"}</span>
           <strong>${item.quantidade}</strong>
         </div>
         <div>
@@ -967,8 +1014,8 @@ function renderizarAtivosAoVivo() {
           </strong>
         </div>
         <div>
-          <span>Preco medio</span>
-          <strong>${dinheiro.format(precoMedio)}</strong>
+          <span>${rendaFixa ? "Valor bruto" : "Preco medio"}</span>
+          <strong>${rendaFixa ? dinheiro.format(cdb.valorBruto) : dinheiro.format(precoMedio)}</strong>
         </div>
         <div>
           <span>${rendaFixa ? "Valor liquido atual" : "Preco de mercado atual"}</span>
@@ -1253,6 +1300,7 @@ function obterMesesEvolucao(totalMeses) {
 
 function calcularPatrimonioDoMes(mes, tipoSelecionado) {
   const hoje = new Date();
+  const carteiraAjustada = obterCarteiraComAjustes();
 
   if (mes.inicio > hoje) {
     return {
@@ -1267,13 +1315,13 @@ function calcularPatrimonioDoMes(mes, tipoSelecionado) {
     };
   }
 
-  const comprasDoMes = carteira.filter((item) => {
+  const comprasDoMes = carteiraAjustada.filter((item) => {
     const dataCompra = new Date(`${item.data}T00:00:00`);
     const classe = obterClasse(item.ticker);
 
     return dataCompra <= mes.fim && (tipoSelecionado === "todos" || classe === tipoSelecionado);
   });
-  const comprasNoMes = carteira.filter((item) => {
+  const comprasNoMes = carteiraAjustada.filter((item) => {
     const dataCompra = new Date(`${item.data}T00:00:00`);
     const classe = obterClasse(item.ticker);
 
