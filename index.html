@@ -118,16 +118,9 @@
         </div>
       </div>
 
-      <div class="income-panel">
-        <div class="chart-heading">
-          <h3>Proventos</h3>
-          <span id="proventos-status">Aguardando carteira</span>
-        </div>
-        <div id="proventos-lista" class="income-list"></div>
-      </div>
-
       <div class="chart-tabs" role="tablist" aria-label="Visualizacao dos graficos">
         <button class="chart-tab is-active" type="button" data-chart-view="geral">Geral</button>
+        <button class="chart-tab" type="button" data-chart-view="proventos">Proventos</button>
         <button class="chart-tab" type="button" data-chart-view="fiis">FIIs</button>
         <button class="chart-tab" type="button" data-chart-view="compradores">Compradores</button>
       </div>
@@ -174,6 +167,24 @@
             </div>
             <div id="legenda-fiis-tab" class="pie-legend"></div>
           </div>
+        </div>
+      </div>
+
+      <div id="chart-view-proventos" class="chart-view" hidden>
+        <div class="chart-block income-panel">
+          <div class="chart-heading">
+            <h3>Historico de proventos</h3>
+            <span id="proventos-status">Aguardando carteira</span>
+          </div>
+          <div id="proventos-lista" class="income-list"></div>
+        </div>
+
+        <div class="chart-block income-panel">
+          <div class="chart-heading">
+            <h3>Proximos pagamentos</h3>
+            <span id="proventos-futuros-status">Somente se ja anunciado</span>
+          </div>
+          <div id="proventos-futuros-lista" class="income-list"></div>
         </div>
       </div>
 

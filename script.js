@@ -12,9 +12,17 @@ let barrasPatrimonio = [];
 let compraEmEdicaoId = null;
 let cotacoesAtuais = {};
 let proventosRecebidos = [];
+let proventosFuturos = [];
 let cdiDiarioAtual = null;
 let tipoCompra = "renda-fixa";
 let abaGrafico = "geral";
+
+const historicoManualProventos = [
+  { ticker: "CPTS11", dataPagamento: "2026-04-19", total: 4.50, fonte: "manual" },
+  { ticker: "GGRC11", dataPagamento: "2026-04-30", total: 3.00, fonte: "manual" },
+  { ticker: "CPTS11", dataPagamento: "2026-05-18", total: 4.50, fonte: "manual" },
+  { ticker: "GGRC11", dataPagamento: "2026-05-20", total: 4.50, fonte: "manual" }
+];
 
 const inputTicker = document.getElementById("input-ticker");
 const inputPreco = document.getElementById("input-preco");
@@ -36,6 +44,8 @@ const totalItens = document.getElementById("total-itens");
 const emptyHint = document.getElementById("empty-hint");
 const proventosStatus = document.getElementById("proventos-status");
 const proventosLista = document.getElementById("proventos-lista");
+const proventosFuturosStatus = document.getElementById("proventos-futuros-status");
+const proventosFuturosLista = document.getElementById("proventos-futuros-lista");
 const assetLiveStatus = document.getElementById("asset-live-status");
 const assetLiveList = document.getElementById("asset-live-list");
 const btnRefresh = document.getElementById("btn-refresh");
@@ -47,6 +57,7 @@ const barrasCarteira = document.getElementById("barras-carteira");
 const chartTabs = document.querySelectorAll("[data-chart-view]");
 const chartViewGeral = document.getElementById("chart-view-geral");
 const chartViewFiis = document.getElementById("chart-view-fiis");
+const chartViewProventos = document.getElementById("chart-view-proventos");
 const chartViewCompradores = document.getElementById("chart-view-compradores");
 const generalChartTotal = document.getElementById("general-chart-total");
 const fiiChartTotal = document.getElementById("fii-chart-total");
@@ -86,6 +97,7 @@ function atualizarAbaGrafico(aba) {
     tab.classList.toggle("is-active", tab.dataset.chartView === aba);
   });
   chartViewGeral.hidden = aba !== "geral";
+  chartViewProventos.hidden = aba !== "proventos";
   chartViewFiis.hidden = aba !== "fiis";
   chartViewCompradores.hidden = aba !== "compradores";
   renderizarGraficos();
@@ -624,10 +636,13 @@ async function buscarCotacaoSilenciosa(ticker) {
 
 async function atualizarProventos() {
   const fiis = [...new Set(carteira.map((item) => item.ticker).filter((ticker) => obterClasse(ticker) === "FIIs"))];
+  const hoje = new Date();
 
   if (!fiis.length) {
-    proventosRecebidos = [];
+    proventosRecebidos = obterProventosManuaisElegiveis(hoje);
+    proventosFuturos = [];
     proventosStatus.textContent = "Sem FIIs";
+    proventosFuturosStatus.textContent = "Sem FIIs";
     atualizarDashboard();
     return;
   }
@@ -635,12 +650,12 @@ async function atualizarProventos() {
   proventosStatus.textContent = "Buscando proventos...";
 
   try {
-    const hoje = new Date();
     const inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 12, hoje.getDate());
+    const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 8, hoje.getDate());
     const params = new URLSearchParams({
       symbols: fiis.slice(0, 20).join(","),
       startDate: formatarDataApi(inicio),
-      endDate: formatarDataApi(hoje),
+      endDate: formatarDataApi(fim),
       sortOrder: "asc"
     });
     const headers = BRAPI_TOKEN ? { Authorization: `Bearer ${BRAPI_TOKEN}` } : {};
@@ -651,15 +666,22 @@ async function atualizarProventos() {
       throw new Error(json.message || json.error || "Nao foi possivel buscar proventos.");
     }
 
-    proventosRecebidos = calcularProventosRecebidos(json.dividends || [], hoje);
+    const calculados = calcularProventosRecebidos(json.dividends || [], hoje);
+    proventosRecebidos = combinarProventosRecebidos(obterProventosManuaisElegiveis(hoje), calculados.recebidos);
+    proventosFuturos = calculados.futuros;
     proventosStatus.textContent = proventosRecebidos.length
-      ? `${proventosRecebidos.length} pagamentos elegiveis`
+      ? `${proventosRecebidos.length} pagamentos recebidos`
       : "Sem pagamentos elegiveis";
+    proventosFuturosStatus.textContent = proventosFuturos.length
+      ? `${proventosFuturos.length} pagamentos anunciados`
+      : "Sem pagamentos anunciados";
     atualizarDashboard();
   } catch (error) {
     console.error("Erro ao buscar proventos:", error);
-    proventosRecebidos = [];
-    proventosStatus.textContent = "Proventos indisponiveis";
+    proventosRecebidos = obterProventosManuaisElegiveis(hoje);
+    proventosFuturos = [];
+    proventosStatus.textContent = "Historico manual carregado";
+    proventosFuturosStatus.textContent = "Consulta indisponivel";
     atualizarDashboard();
   }
 }
@@ -685,79 +707,126 @@ async function atualizarCdi() {
 
 function calcularProventosRecebidos(dividendos, hoje) {
   return dividendos
-    .map((dividendo) => {
+    .reduce((resultado, dividendo) => {
       const ticker = String(dividendo.symbol || "").toUpperCase();
       const dataBase = criarDataBrapi(dividendo.lastDatePrior);
       const dataPagamento = criarDataBrapi(dividendo.paymentDate);
       const valorPorCota = Number(dividendo.rate || 0);
 
-      if (!ticker || !dataBase || !dataPagamento || dataPagamento > hoje || valorPorCota <= 0) {
-        return null;
+      if (!ticker || !dataPagamento || valorPorCota <= 0) {
+        return resultado;
       }
 
-      const quantidadeElegivel = carteira
-        .filter((item) => item.ticker === ticker && new Date(`${item.data}T00:00:00`) <= dataBase)
-        .reduce((soma, item) => soma + item.quantidade, 0);
+      const dataCorte = dataBase || hoje;
+      const quantidadeElegivel = dataPagamento <= hoje
+        ? obterQuantidadeAteData(ticker, dataCorte)
+        : obterQuantidadeAtual(ticker);
 
       if (quantidadeElegivel <= 0) {
-        return null;
+        return resultado;
       }
 
-      return {
+      const item = {
         ticker,
         quantidade: quantidadeElegivel,
         valorPorCota,
         total: quantidadeElegivel * valorPorCota,
         dataBase,
         dataPagamento,
-        label: dividendo.label || "Provento"
+        label: dividendo.label || "Provento",
+        fonte: "brapi"
       };
-    })
-    .filter(Boolean);
+
+      if (dataPagamento <= hoje) {
+        resultado.recebidos.push(item);
+      } else {
+        resultado.futuros.push(item);
+      }
+
+      return resultado;
+    }, { recebidos: [], futuros: [] });
+}
+
+function obterProventosManuaisElegiveis(hoje) {
+  return historicoManualProventos
+    .map((item) => ({
+      ...item,
+      dataPagamento: new Date(`${item.dataPagamento}T00:00:00`),
+      dataBase: null,
+      quantidade: obterQuantidadeAtual(item.ticker),
+      valorPorCota: null,
+      label: "Provento recebido"
+    }))
+    .filter((item) => item.dataPagamento <= hoje);
+}
+
+function combinarProventosRecebidos(manuais, calculados) {
+  const chavesManuais = new Set(manuais.map((item) => chaveProvento(item)));
+  const calculadosSemDuplicar = calculados.filter((item) => !chavesManuais.has(chaveProvento(item)));
+
+  return [...manuais, ...calculadosSemDuplicar]
+    .sort((a, b) => a.dataPagamento - b.dataPagamento);
+}
+
+function chaveProvento(item) {
+  return `${item.ticker}|${formatarDataApi(item.dataPagamento)}`;
+}
+
+function obterQuantidadeAteData(ticker, data) {
+  return carteira
+    .filter((item) => item.ticker === ticker && new Date(`${item.data}T00:00:00`) <= data)
+    .reduce((soma, item) => soma + item.quantidade, 0);
+}
+
+function obterQuantidadeAtual(ticker) {
+  return carteira
+    .filter((item) => item.ticker === ticker)
+    .reduce((soma, item) => soma + item.quantidade, 0);
 }
 
 function renderizarProventos() {
   proventosLista.innerHTML = "";
+  proventosFuturosLista.innerHTML = "";
 
   if (!proventosRecebidos.length) {
     proventosLista.innerHTML = '<p class="empty-chart">Sem proventos recebidos para as compras elegiveis.</p>';
-    return;
+  } else {
+    proventosRecebidos
+      .slice()
+      .sort((a, b) => b.dataPagamento - a.dataPagamento)
+      .forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "income-row";
+        row.innerHTML = `
+          <div>
+            <strong>${escaparHtml(item.ticker)} - ${formatarDataObjeto(item.dataPagamento)}</strong>
+            <span>${escaparHtml(item.label)}${item.fonte === "manual" ? " - lancamento real informado" : ` - ${item.quantidade} cotas x ${dinheiro.format(item.valorPorCota)}`}</span>
+          </div>
+          <strong>${dinheiro.format(item.total)}</strong>
+        `;
+        proventosLista.appendChild(row);
+      });
   }
 
-  const porTicker = proventosRecebidos.reduce((resultado, item) => {
-    if (!resultado[item.ticker]) {
-      resultado[item.ticker] = {
-        ticker: item.ticker,
-        total: 0,
-        pagamentos: 0,
-        ultimoPagamento: item.dataPagamento
-      };
-    }
-
-    resultado[item.ticker].total += item.total;
-    resultado[item.ticker].pagamentos += 1;
-
-    if (item.dataPagamento > resultado[item.ticker].ultimoPagamento) {
-      resultado[item.ticker].ultimoPagamento = item.dataPagamento;
-    }
-
-    return resultado;
-  }, {});
-
-  Object.values(porTicker)
-    .sort((a, b) => b.total - a.total)
-    .forEach((item) => {
+  if (!proventosFuturos.length) {
+    proventosFuturosLista.innerHTML = '<p class="empty-chart">Sem pagamentos futuros anunciados pela fonte consultada.</p>';
+  } else {
+    proventosFuturos
+      .slice()
+      .sort((a, b) => a.dataPagamento - b.dataPagamento)
+      .forEach((item) => {
       const row = document.createElement("div");
       row.className = "income-row";
       row.innerHTML = `
         <div>
-          <strong>${escaparHtml(item.ticker)}</strong>
-          <span>${item.pagamentos} ${item.pagamentos === 1 ? "pagamento" : "pagamentos"} - ultimo em ${formatarDataObjeto(item.ultimoPagamento)}</span>
+          <strong>${escaparHtml(item.ticker)} - ${formatarDataObjeto(item.dataPagamento)}</strong>
+          <span>${item.quantidade} cotas x ${dinheiro.format(item.valorPorCota)}${item.dataBase ? ` - data-base ${formatarDataObjeto(item.dataBase)}` : ""}</span>
         </div>
         <strong>${dinheiro.format(item.total)}</strong>
       `;
-      proventosLista.appendChild(row);
-    });
+      proventosFuturosLista.appendChild(row);
+      });
+  }
 }
 
 function criarDataBrapi(valor) {
