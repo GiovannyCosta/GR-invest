@@ -20,7 +20,7 @@ let abaGrafico = "geral";
 const saldoAntigoCdbInter = {
   id: "saldo-antigo-cdb-inter",
   ticker: "CDBINTERDI",
-  precoCompra: 2.77,
+  precoCompra: 2.72,
   quantidade: 1,
   data: "2026-04-09",
   comprador: "Giovanny",
@@ -43,6 +43,26 @@ const historicoManualProventos = [
   { ticker: "CPTS11", dataPagamento: "2026-05-18", total: 4.50, fonte: "manual" },
   { ticker: "GGRC11", dataPagamento: "2026-05-20", total: 4.50, fonte: "manual" }
 ];
+
+const referenciaInter = {
+  data: "2026-06-12",
+  custos: {
+    CPTS11: 547.17,
+    GGRC11: 456.75
+  },
+  cotacoes: {
+    CPTS11: 7.60,
+    GGRC11: 9.94,
+    ALZR11: 10.05
+  },
+  rendaFixa: {
+    CDBINTERDI: {
+      principal: 502.72,
+      valorLiquido: 503.95,
+      rendimentoLiquido: 1.23
+    }
+  }
+};
 
 const inputTicker = document.getElementById("input-ticker");
 const inputPreco = document.getElementById("input-preco");
@@ -446,11 +466,65 @@ function atualizarDashboard() {
 }
 
 function calcularTotalInvestido(itens = obterCarteiraComAjustes()) {
-  return itens.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  return obterGruposPorTicker(itens)
+    .reduce((soma, item) => soma + obterCustoInvestidoDoGrupo(item), 0);
 }
 
 function calcularValorAtualCarteira(itens = obterCarteiraComAjustes()) {
-  return itens.reduce((soma, item) => soma + obterValorAtualDaCompra(item), 0);
+  return obterGruposPorTicker(itens)
+    .reduce((soma, item) => soma + obterValorAtualDoGrupo(item), 0);
+}
+
+function obterGruposPorTicker(itens = obterCarteiraComAjustes()) {
+  const mapa = itens.reduce((resultado, item) => {
+    const ticker = item.ticker;
+    const totalInvestido = item.precoCompra * item.quantidade;
+
+    if (!resultado[ticker]) {
+      resultado[ticker] = {
+        ticker,
+        totalInvestido: 0,
+        quantidade: 0,
+        segmento: obterSegmento(ticker),
+        compradores: {},
+        aplicacoes: []
+      };
+    }
+
+    resultado[ticker].totalInvestido += totalInvestido;
+    resultado[ticker].quantidade += item.quantidade;
+    resultado[ticker].compradores[item.comprador] = (resultado[ticker].compradores[item.comprador] || 0) + item.quantidade;
+    resultado[ticker].aplicacoes.push(item);
+    return resultado;
+  }, {});
+
+  return Object.values(mapa);
+}
+
+function obterCustoInvestidoDoGrupo(item) {
+  const custoInter = referenciaInter.custos[item.ticker];
+  return Number.isFinite(custoInter) ? custoInter : item.totalInvestido;
+}
+
+function obterValorAtualDoGrupo(item) {
+  const rendaFixa = referenciaInter.rendaFixa[item.ticker];
+
+  if (rendaFixa && Number.isFinite(rendaFixa.valorLiquido)) {
+    return rendaFixa.valorLiquido;
+  }
+
+  const cotacaoInter = referenciaInter.cotacoes[item.ticker];
+  const precoAtual = Number.isFinite(cotacaoInter) ? cotacaoInter : obterPrecoAtual(item.ticker);
+
+  if (Number.isFinite(precoAtual) && precoAtual > 0) {
+    return precoAtual * item.quantidade;
+  }
+
+  if (item.ticker === "CDBINTERDI") {
+    return calcularCdbInter(item).valorLiquido;
+  }
+
+  return item.totalInvestido;
 }
 
 function obterValorAtualDaCompra(item) {
@@ -458,7 +532,8 @@ function obterValorAtualDaCompra(item) {
     return calcularCdbInter({ ...item, aplicacoes: [item] }).valorLiquido;
   }
 
-  const precoAtual = obterPrecoAtual(item.ticker);
+  const cotacaoInter = referenciaInter.cotacoes[item.ticker];
+  const precoAtual = Number.isFinite(cotacaoInter) ? cotacaoInter : obterPrecoAtual(item.ticker);
   const preco = Number.isFinite(precoAtual) && precoAtual > 0 ? precoAtual : item.precoCompra;
   return preco * item.quantidade;
 }
@@ -553,12 +628,10 @@ function renderizarGraficos() {
 }
 
 function obterResumoPorClasse() {
-  const carteiraAjustada = obterCarteiraComAjustes();
-  const totalCarteira = calcularValorAtualCarteira(carteiraAjustada);
-  const mapa = carteiraAjustada.reduce((resultado, item) => {
+  const resumosPorTicker = obterResumoPorTicker();
+  const totalCarteira = resumosPorTicker.reduce((soma, item) => soma + item.total, 0);
+  const mapa = resumosPorTicker.reduce((resultado, item) => {
     const ticker = obterClasse(item.ticker);
-    const totalInvestido = item.precoCompra * item.quantidade;
-    const valorAtual = obterValorAtualDaCompra(item);
 
     if (!resultado[ticker]) {
       resultado[ticker] = {
@@ -571,10 +644,12 @@ function obterResumoPorClasse() {
       };
     }
 
-    resultado[ticker].total += valorAtual;
-    resultado[ticker].totalInvestido += totalInvestido;
+    resultado[ticker].total += item.total;
+    resultado[ticker].totalInvestido += item.totalInvestido;
     resultado[ticker].quantidade += item.quantidade;
-    resultado[ticker].compradores[item.comprador] = (resultado[ticker].compradores[item.comprador] || 0) + item.quantidade;
+    Object.entries(item.compradores).forEach(([comprador, quantidade]) => {
+      resultado[ticker].compradores[comprador] = (resultado[ticker].compradores[comprador] || 0) + quantidade;
+    });
     return resultado;
   }, {});
 
@@ -628,38 +703,16 @@ function obterResumoPorComprador() {
 }
 
 function obterResumoPorTicker() {
-  const carteiraAjustada = obterCarteiraComAjustes();
-  const totalCarteira = calcularValorAtualCarteira(carteiraAjustada);
-  const mapa = carteiraAjustada.reduce((resultado, item) => {
-    const ticker = item.ticker;
-    const totalInvestido = item.precoCompra * item.quantidade;
-    const valorAtual = obterValorAtualDaCompra(item);
+  const grupos = obterGruposPorTicker();
+  const totalCarteira = grupos.reduce((soma, item) => soma + obterValorAtualDoGrupo(item), 0);
 
-    if (!resultado[ticker]) {
-      resultado[ticker] = {
-        ticker,
-        total: 0,
-        totalInvestido: 0,
-        quantidade: 0,
-        segmento: obterSegmento(ticker),
-        compradores: {},
-        aplicacoes: []
-      };
-    }
-
-    resultado[ticker].total += valorAtual;
-    resultado[ticker].totalInvestido += totalInvestido;
-    resultado[ticker].quantidade += item.quantidade;
-    resultado[ticker].compradores[item.comprador] = (resultado[ticker].compradores[item.comprador] || 0) + item.quantidade;
-    resultado[ticker].aplicacoes.push(item);
-    return resultado;
-  }, {});
-
-  return Object.values(mapa)
+  return grupos
     .map((item) => ({
       ...item,
+      total: obterValorAtualDoGrupo(item),
+      totalInvestido: obterCustoInvestidoDoGrupo(item),
       segmento: obterSegmento(item.ticker),
-      percentual: totalCarteira ? (item.total / totalCarteira) * 100 : 0
+      percentual: totalCarteira ? (obterValorAtualDoGrupo(item) / totalCarteira) * 100 : 0
     }))
     .sort((a, b) => b.total - a.total);
 }
@@ -1022,6 +1075,26 @@ function calcularCdbInter(item) {
     ir: 0,
     rendimentoLiquido: 0
   });
+  const referencia = item.aplicacoes?.length > 1 ? referenciaInter.rendaFixa[item.ticker] : null;
+
+  if (referencia && Number.isFinite(referencia.valorLiquido)) {
+    const principal = Number.isFinite(referencia.principal) ? referencia.principal : totais.principal;
+    const rendimentoLiquido = Number.isFinite(referencia.rendimentoLiquido)
+      ? referencia.rendimentoLiquido
+      : Math.max(0, referencia.valorLiquido - principal);
+
+    return {
+      ...totais,
+      principal,
+      cdiDiario,
+      rendimentoBruto: rendimentoLiquido,
+      iof: 0,
+      ir: 0,
+      rendimentoLiquido,
+      valorBruto: principal + rendimentoLiquido,
+      valorLiquido: referencia.valorLiquido
+    };
+  }
 
   return {
     ...totais,
@@ -1730,6 +1803,12 @@ function obterSegmento(ticker) {
 }
 
 function obterPrecoAtual(ticker) {
+  const cotacaoInter = referenciaInter.cotacoes[ticker];
+
+  if (Number.isFinite(cotacaoInter)) {
+    return cotacaoInter;
+  }
+
   const cotacao = cotacoesAtuais[ticker];
 
   if (typeof cotacao === "number") {
