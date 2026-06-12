@@ -425,7 +425,8 @@ async function excluirCompra(id) {
 
 function atualizarDashboard() {
   const carteiraAjustada = obterCarteiraComAjustes();
-  const total = carteiraAjustada.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const total = calcularTotalInvestido(carteiraAjustada);
+  const patrimonioAtual = calcularValorAtualCarteira(carteiraAjustada);
   const quantidade = carteiraAjustada.reduce((soma, item) => soma + item.quantidade, 0);
   const tickersUnicos = new Set(carteiraAjustada.map((item) => item.ticker)).size;
   const totalRecebido = proventosRecebidos.reduce((soma, item) => soma + item.total, 0);
@@ -433,7 +434,7 @@ function atualizarDashboard() {
   totalInvestido.textContent = dinheiro.format(total);
   totalAcoes.textContent = String(quantidade);
   totalProventos.textContent = dinheiro.format(totalRecebido);
-  patrimonioProventos.textContent = dinheiro.format(total + totalRecebido);
+  patrimonioProventos.textContent = dinheiro.format(patrimonioAtual + totalRecebido);
   totalItens.textContent = `${tickersUnicos} ${tickersUnicos === 1 ? "ativo" : "ativos"}`;
   emptyHint.textContent = carteira.length ? `${carteira.length} compras` : "Sem compras cadastradas";
 
@@ -442,6 +443,24 @@ function atualizarDashboard() {
   renderizarEvolucaoPatrimonio();
   renderizarProventos();
   renderizarAtivosAoVivo();
+}
+
+function calcularTotalInvestido(itens = obterCarteiraComAjustes()) {
+  return itens.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+}
+
+function calcularValorAtualCarteira(itens = obterCarteiraComAjustes()) {
+  return itens.reduce((soma, item) => soma + obterValorAtualDaCompra(item), 0);
+}
+
+function obterValorAtualDaCompra(item) {
+  if (item.ticker === "CDBINTERDI") {
+    return calcularCdbInter({ ...item, aplicacoes: [item] }).valorLiquido;
+  }
+
+  const precoAtual = obterPrecoAtual(item.ticker);
+  const preco = Number.isFinite(precoAtual) && precoAtual > 0 ? precoAtual : item.precoCompra;
+  return preco * item.quantidade;
 }
 
 function renderizarTabela() {
@@ -492,7 +511,7 @@ function renderizarGraficos() {
   const dadosPorClasse = obterResumoPorClasse();
   const dadosFiis = obterResumoDeFiis();
   const dadosCompradores = obterResumoPorComprador();
-  const totalCarteira = obterCarteiraComAjustes().reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const totalCarteira = calcularValorAtualCarteira();
   const totalFiis = dadosFiis.reduce((soma, item) => soma + item.total, 0);
   const totalCompradores = dadosCompradores.reduce((soma, item) => soma + item.total, 0);
   const percentualFiis = totalCarteira ? (totalFiis / totalCarteira) * 100 : 0;
@@ -535,22 +554,25 @@ function renderizarGraficos() {
 
 function obterResumoPorClasse() {
   const carteiraAjustada = obterCarteiraComAjustes();
-  const totalCarteira = carteiraAjustada.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const totalCarteira = calcularValorAtualCarteira(carteiraAjustada);
   const mapa = carteiraAjustada.reduce((resultado, item) => {
     const ticker = obterClasse(item.ticker);
-    const total = item.precoCompra * item.quantidade;
+    const totalInvestido = item.precoCompra * item.quantidade;
+    const valorAtual = obterValorAtualDaCompra(item);
 
     if (!resultado[ticker]) {
       resultado[ticker] = {
         ticker,
         total: 0,
+        totalInvestido: 0,
         quantidade: 0,
         segmento: ticker,
         compradores: {}
       };
     }
 
-    resultado[ticker].total += total;
+    resultado[ticker].total += valorAtual;
+    resultado[ticker].totalInvestido += totalInvestido;
     resultado[ticker].quantidade += item.quantidade;
     resultado[ticker].compradores[item.comprador] = (resultado[ticker].compradores[item.comprador] || 0) + item.quantidade;
     return resultado;
@@ -607,15 +629,17 @@ function obterResumoPorComprador() {
 
 function obterResumoPorTicker() {
   const carteiraAjustada = obterCarteiraComAjustes();
-  const totalCarteira = carteiraAjustada.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const totalCarteira = calcularValorAtualCarteira(carteiraAjustada);
   const mapa = carteiraAjustada.reduce((resultado, item) => {
     const ticker = item.ticker;
-    const total = item.precoCompra * item.quantidade;
+    const totalInvestido = item.precoCompra * item.quantidade;
+    const valorAtual = obterValorAtualDaCompra(item);
 
     if (!resultado[ticker]) {
       resultado[ticker] = {
         ticker,
         total: 0,
+        totalInvestido: 0,
         quantidade: 0,
         segmento: obterSegmento(ticker),
         compradores: {},
@@ -623,7 +647,8 @@ function obterResumoPorTicker() {
       };
     }
 
-    resultado[ticker].total += total;
+    resultado[ticker].total += valorAtual;
+    resultado[ticker].totalInvestido += totalInvestido;
     resultado[ticker].quantidade += item.quantidade;
     resultado[ticker].compradores[item.comprador] = (resultado[ticker].compradores[item.comprador] || 0) + item.quantidade;
     resultado[ticker].aplicacoes.push(item);
@@ -1071,13 +1096,14 @@ function renderizarAtivosAoVivo() {
 
 function criarCardAtivoAoVivo(item) {
   const rendaFixa = item.ticker === "CDBINTERDI";
-  const precoMedio = item.quantidade ? item.total / item.quantidade : 0;
+  const totalInvestidoItem = Number.isFinite(item.totalInvestido) ? item.totalInvestido : item.total;
+  const precoMedio = item.quantidade ? totalInvestidoItem / item.quantidade : 0;
   const cdb = rendaFixa ? calcularCdbInter(item) : null;
   const precoMercado = rendaFixa ? cdb.valorLiquido : obterPrecoAtual(item.ticker);
   const temMercado = rendaFixa || (Number.isFinite(precoMercado) && precoMercado > 0);
   const valorMercado = rendaFixa ? cdb.valorLiquido : temMercado ? precoMercado * item.quantidade : null;
-  const ganho = rendaFixa ? cdb.rendimentoLiquido : temMercado ? valorMercado - item.total : null;
-  const ganhoPercentual = rendaFixa ? (item.total ? (ganho / item.total) * 100 : 0) : temMercado && item.total ? (ganho / item.total) * 100 : null;
+  const ganho = rendaFixa ? cdb.rendimentoLiquido : temMercado ? valorMercado - totalInvestidoItem : null;
+  const ganhoPercentual = rendaFixa ? (totalInvestidoItem ? (ganho / totalInvestidoItem) * 100 : 0) : temMercado && totalInvestidoItem ? (ganho / totalInvestidoItem) * 100 : null;
   const variacaoClasse = ganho === null ? "" : ganho >= 0 ? "positive" : "negative";
   const sinal = ganho !== null && ganho > 0 ? "+" : "";
   const detalhesCdb = rendaFixa ? `
