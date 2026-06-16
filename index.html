@@ -129,6 +129,7 @@
         <button class="chart-tab is-active" type="button" data-chart-view="geral">Geral</button>
         <button class="chart-tab" type="button" data-chart-view="proventos">Proventos</button>
         <button class="chart-tab" type="button" data-chart-view="fiis">FIIs</button>
+        <button class="chart-tab" type="button" data-chart-view="acoes">Acoes</button>
         <button class="chart-tab" type="button" data-chart-view="compradores">Compradores</button>
       </div>
 
@@ -160,6 +161,20 @@
           </div>
           <div id="barras-fiis" class="bars compact-bars"></div>
         </div>
+
+        <div class="chart-block">
+          <div class="chart-heading">
+            <h3>Acoes na carteira</h3>
+            <span id="acoes-chart-total">Percentual por acao</span>
+          </div>
+          <div class="charts">
+            <div class="pie-area">
+              <canvas id="grafico-acoes" width="360" height="280" aria-label="Distribuicao das acoes em pizza"></canvas>
+            </div>
+            <div id="legenda-acoes" class="pie-legend"></div>
+          </div>
+          <div id="barras-acoes" class="bars compact-bars"></div>
+        </div>
       </div>
 
       <div id="chart-view-fiis" class="chart-view" hidden>
@@ -173,6 +188,21 @@
               <canvas id="grafico-fiis-tab" width="360" height="280" aria-label="Distribuicao focada dos FIIs em pizza"></canvas>
             </div>
             <div id="legenda-fiis-tab" class="pie-legend"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="chart-view-acoes" class="chart-view" hidden>
+        <div class="chart-block">
+          <div class="chart-heading">
+            <h3>Acoes</h3>
+            <span>Foco em acoes da carteira</span>
+          </div>
+          <div class="charts">
+            <div class="pie-area">
+              <canvas id="grafico-acoes-tab" width="360" height="280" aria-label="Distribuicao focada das acoes em pizza"></canvas>
+            </div>
+            <div id="legenda-acoes-tab" class="pie-legend"></div>
           </div>
         </div>
       </div>

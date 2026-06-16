@@ -887,7 +887,7 @@ th {
 
 .chart-tabs {
   display: inline-grid;
-  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
   gap: 8px;
   margin-bottom: 16px;
 }

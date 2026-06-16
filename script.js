@@ -102,10 +102,12 @@ const barrasCarteira = document.getElementById("barras-carteira");
 const chartTabs = document.querySelectorAll("[data-chart-view]");
 const chartViewGeral = document.getElementById("chart-view-geral");
 const chartViewFiis = document.getElementById("chart-view-fiis");
+const chartViewAcoes = document.getElementById("chart-view-acoes");
 const chartViewProventos = document.getElementById("chart-view-proventos");
 const chartViewCompradores = document.getElementById("chart-view-compradores");
 const generalChartTotal = document.getElementById("general-chart-total");
 const fiiChartTotal = document.getElementById("fii-chart-total");
+const acoesChartTotal = document.getElementById("acoes-chart-total");
 const compradoresChartTotal = document.getElementById("compradores-chart-total");
 const participacaoTitle = document.getElementById("participacao-title");
 const participacaoSubtitle = document.getElementById("participacao-subtitle");
@@ -116,6 +118,13 @@ const barrasFiis = document.getElementById("barras-fiis");
 const canvasFiisTab = document.getElementById("grafico-fiis-tab");
 const ctxFiisTab = canvasFiisTab.getContext("2d");
 const legendaFiisTab = document.getElementById("legenda-fiis-tab");
+const canvasAcoes = document.getElementById("grafico-acoes");
+const ctxAcoes = canvasAcoes.getContext("2d");
+const legendaAcoes = document.getElementById("legenda-acoes");
+const barrasAcoes = document.getElementById("barras-acoes");
+const canvasAcoesTab = document.getElementById("grafico-acoes-tab");
+const ctxAcoesTab = canvasAcoesTab.getContext("2d");
+const legendaAcoesTab = document.getElementById("legenda-acoes-tab");
 const canvasCompradores = document.getElementById("grafico-compradores");
 const ctxCompradores = canvasCompradores.getContext("2d");
 const legendaCompradores = document.getElementById("legenda-compradores");
@@ -145,6 +154,7 @@ function atualizarAbaGrafico(aba) {
   chartViewGeral.hidden = aba !== "geral";
   chartViewProventos.hidden = aba !== "proventos";
   chartViewFiis.hidden = aba !== "fiis";
+  chartViewAcoes.hidden = aba !== "acoes";
   chartViewCompradores.hidden = aba !== "compradores";
   renderizarGraficos();
 }
@@ -585,27 +595,37 @@ function renderizarTabela() {
 function renderizarGraficos() {
   const dadosPorClasse = obterResumoPorClasse();
   const dadosFiis = obterResumoDeFiis();
+  const dadosAcoes = obterResumoDeAcoes();
   const dadosCompradores = obterResumoPorComprador();
   const totalCarteira = calcularValorAtualCarteira();
   const totalFiis = dadosFiis.reduce((soma, item) => soma + item.total, 0);
+  const totalAcoesCarteira = dadosAcoes.reduce((soma, item) => soma + item.total, 0);
   const totalCompradores = dadosCompradores.reduce((soma, item) => soma + item.total, 0);
   const percentualFiis = totalCarteira ? (totalFiis / totalCarteira) * 100 : 0;
+  const percentualAcoes = totalCarteira ? (totalAcoesCarteira / totalCarteira) * 100 : 0;
   const dadosParticipacao = abaGrafico === "fiis"
     ? dadosFiis
+    : abaGrafico === "acoes"
+      ? dadosAcoes
     : abaGrafico === "compradores"
       ? dadosCompradores
       : dadosPorClasse;
 
   generalChartTotal.textContent = `${dinheiro.format(totalCarteira)} no total`;
   fiiChartTotal.textContent = `${percentualFiis.toFixed(1)}% da carteira em FIIs`;
+  acoesChartTotal.textContent = `${percentualAcoes.toFixed(1)}% da carteira em acoes`;
   compradoresChartTotal.textContent = `${dinheiro.format(totalCompradores)} em compras`;
   participacaoTitle.textContent = abaGrafico === "fiis"
     ? "Maior participacao em FIIs"
+    : abaGrafico === "acoes"
+      ? "Maior participacao em acoes"
     : abaGrafico === "compradores"
       ? "Maior participacao por comprador"
       : "Maior participacao na carteira";
   participacaoSubtitle.textContent = abaGrafico === "fiis"
     ? "Percentual por FII"
+    : abaGrafico === "acoes"
+      ? "Percentual por acao"
     : abaGrafico === "compradores"
       ? "Percentual por comprador"
       : "Percentual por classe";
@@ -613,6 +633,18 @@ function renderizarGraficos() {
   renderizarGraficoPizza(dadosPorClasse);
   renderizarGraficoPizzaSecundario(dadosFiis, ctxFiis, canvasFiis, legendaFiis);
   renderizarGraficoPizzaSecundario(dadosFiis, ctxFiisTab, canvasFiisTab, legendaFiisTab);
+  renderizarGraficoPizzaSecundario(dadosAcoes, ctxAcoes, canvasAcoes, legendaAcoes, {
+    vazio: "Sem acoes para exibir",
+    dicaVazia: "Cadastre acoes para montar este grafico.",
+    singular: "acao",
+    plural: "acoes"
+  });
+  renderizarGraficoPizzaSecundario(dadosAcoes, ctxAcoesTab, canvasAcoesTab, legendaAcoesTab, {
+    vazio: "Sem acoes para exibir",
+    dicaVazia: "Cadastre acoes para montar este grafico.",
+    singular: "acao",
+    plural: "acoes"
+  });
   renderizarGraficoPizzaSecundario(dadosCompradores, ctxCompradores, canvasCompradores, legendaCompradores, {
     vazio: "Sem compras para exibir",
     dicaVazia: "Cadastre compras para comparar Giovanny e Rafaela.",
@@ -625,6 +657,7 @@ function renderizarGraficos() {
   });
   renderizarGraficoBarras(dadosParticipacao, barrasCarteira);
   renderizarGraficoBarras(dadosFiis, barrasFiis);
+  renderizarGraficoBarras(dadosAcoes, barrasAcoes);
 }
 
 function obterResumoPorClasse() {
@@ -668,6 +701,16 @@ function obterResumoDeFiis() {
   return fiis.map((item) => ({
     ...item,
     percentual: totalFiis ? (item.total / totalFiis) * 100 : 0
+  }));
+}
+
+function obterResumoDeAcoes() {
+  const acoes = obterResumoPorTicker().filter((item) => obterClasse(item.ticker) === "Acoes");
+  const totalAcoes = acoes.reduce((soma, item) => soma + item.total, 0);
+
+  return acoes.map((item) => ({
+    ...item,
+    percentual: totalAcoes ? (item.total / totalAcoes) * 100 : 0
   }));
 }
 
@@ -1995,7 +2038,7 @@ btnCancelEdit.addEventListener("click", () => {
   spanPrecoAtual.textContent = "Aguardando...";
 });
 btnRefresh.addEventListener("click", carregarCarteira);
-[canvas, canvasFiis, canvasFiisTab, canvasCompradores].forEach(registrarInteracaoPizza);
+[canvas, canvasFiis, canvasFiisTab, canvasAcoes, canvasAcoesTab, canvasCompradores].forEach(registrarInteracaoPizza);
 canvasPatrimonio.addEventListener("mousemove", (event) => {
   const barra = obterBarraPatrimonioNoMouse(event);
 
