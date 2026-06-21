@@ -91,6 +91,7 @@ const proventosFuturosStatus = document.getElementById("proventos-futuros-status
 const proventosFuturosLista = document.getElementById("proventos-futuros-lista");
 const proventosEstimadosStatus = document.getElementById("proventos-estimados-status");
 const proventosEstimadosLista = document.getElementById("proventos-estimados-lista");
+const assetLivePanel = document.getElementById("asset-live-panel");
 const assetLiveStatus = document.getElementById("asset-live-status");
 const assetLiveList = document.getElementById("asset-live-list");
 const btnRefresh = document.getElementById("btn-refresh");
@@ -98,6 +99,7 @@ const canvas = document.getElementById("grafico-pizza");
 const ctx = canvas.getContext("2d");
 const tooltipGrafico = document.getElementById("grafico-tooltip");
 const legendaPizza = document.getElementById("legenda-pizza");
+const participacaoPanel = document.getElementById("participacao-panel");
 const barrasCarteira = document.getElementById("barras-carteira");
 const chartTabs = document.querySelectorAll("[data-chart-view]");
 const chartViewGeral = document.getElementById("chart-view-geral");
@@ -156,6 +158,8 @@ function atualizarAbaGrafico(aba) {
   chartViewFiis.hidden = aba !== "fiis";
   chartViewAcoes.hidden = aba !== "acoes";
   chartViewCompradores.hidden = aba !== "compradores";
+  assetLivePanel.hidden = aba !== "geral";
+  participacaoPanel.hidden = aba !== "geral" && aba !== "compradores";
   renderizarGraficos();
 }
 
