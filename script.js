@@ -13,9 +13,11 @@ let compraEmEdicaoId = null;
 let cotacoesAtuais = {};
 let proventosRecebidos = [];
 let proventosFuturos = [];
+let proventosManuaisUsuario = [];
 let cdiDiarioAtual = null;
 let tipoCompra = "renda-fixa";
 let abaGrafico = "geral";
+const proventosManuaisStorageKey = "gr-invest-proventos-manuais";
 
 const saldoAntigoCdbInter = {
   id: "saldo-antigo-cdb-inter",
@@ -41,7 +43,12 @@ const historicoManualProventos = [
   { ticker: "CPTS11", dataPagamento: "2026-04-19", total: 4.50, fonte: "manual" },
   { ticker: "GGRC11", dataPagamento: "2026-04-30", total: 3.00, fonte: "manual" },
   { ticker: "CPTS11", dataPagamento: "2026-05-18", total: 4.50, fonte: "manual" },
-  { ticker: "GGRC11", dataPagamento: "2026-05-20", total: 4.50, fonte: "manual" }
+  { ticker: "GGRC11", dataPagamento: "2026-05-20", total: 4.50, fonte: "manual" },
+  { ticker: "GGRC11", dataPagamento: "2026-06-09", valorPorCota: 0.10, fonte: "manual", label: "Provento recebido" }
+];
+
+const proventosFuturosIgnorados = [
+  { ticker: "GGRC11", dataPagamento: "2026-07-20" }
 ];
 
 const referenciaInter = {
@@ -91,6 +98,12 @@ const proventosFuturosStatus = document.getElementById("proventos-futuros-status
 const proventosFuturosLista = document.getElementById("proventos-futuros-lista");
 const proventosEstimadosStatus = document.getElementById("proventos-estimados-status");
 const proventosEstimadosLista = document.getElementById("proventos-estimados-lista");
+const btnProventoManual = document.getElementById("btn-provento-manual");
+const formProventoManual = document.getElementById("provento-manual-form");
+const inputProventoManualTicker = document.getElementById("provento-manual-ticker");
+const inputProventoManualData = document.getElementById("provento-manual-data");
+const inputProventoManualValor = document.getElementById("provento-manual-valor");
+const btnCancelarProventoManual = document.getElementById("btn-cancelar-provento-manual");
 const assetLivePanel = document.getElementById("asset-live-panel");
 const assetLiveStatus = document.getElementById("asset-live-status");
 const assetLiveList = document.getElementById("asset-live-list");
@@ -922,7 +935,7 @@ async function atualizarProventos() {
 
     const calculados = calcularProventosRecebidos(json.dividends || [], hoje);
     proventosRecebidos = combinarProventosRecebidos(obterProventosManuaisElegiveis(hoje), calculados.recebidos);
-    proventosFuturos = calculados.futuros;
+    proventosFuturos = filtrarProventosFuturosCorrigidos(calculados.futuros);
     proventosStatus.textContent = proventosRecebidos.length
       ? `${proventosRecebidos.length} pagamentos recebidos`
       : "Sem pagamentos elegiveis";
@@ -1002,16 +1015,55 @@ function calcularProventosRecebidos(dividendos, hoje) {
 }
 
 function obterProventosManuaisElegiveis(hoje) {
-  return historicoManualProventos
-    .map((item) => ({
-      ...item,
-      dataPagamento: new Date(`${item.dataPagamento}T00:00:00`),
-      dataBase: null,
-      quantidade: obterQuantidadeAtual(item.ticker),
-      valorPorCota: null,
-      label: "Provento recebido"
-    }))
+  return obterHistoricoManualCompleto()
+    .map((item) => normalizarProventoManual(item))
+    .filter(Boolean)
     .filter((item) => item.dataPagamento <= hoje);
+}
+
+function obterHistoricoManualCompleto() {
+  return [...historicoManualProventos, ...proventosManuaisUsuario];
+}
+
+function normalizarProventoManual(item) {
+  const ticker = String(item.ticker || "").toUpperCase();
+  const dataPagamento = new Date(`${item.dataPagamento}T00:00:00`);
+  const valorPorCota = Number(item.valorPorCota);
+  const totalInformado = Number(item.total);
+
+  if (!ticker || Number.isNaN(dataPagamento.getTime())) {
+    return null;
+  }
+
+  const quantidade = Number.isFinite(valorPorCota) && valorPorCota > 0
+    ? obterQuantidadeAteData(ticker, dataPagamento) || obterQuantidadeAtual(ticker)
+    : obterQuantidadeAtual(ticker);
+  const total = Number.isFinite(totalInformado) && totalInformado > 0
+    ? totalInformado
+    : quantidade * valorPorCota;
+
+  if (!Number.isFinite(total) || total <= 0) {
+    return null;
+  }
+
+  return {
+    ...item,
+    ticker,
+    dataPagamento,
+    dataBase: null,
+    quantidade,
+    valorPorCota: Number.isFinite(valorPorCota) && valorPorCota > 0 ? valorPorCota : null,
+    total,
+    label: item.label || "Provento recebido",
+    fonte: item.fonte || "manual"
+  };
+}
+
+function filtrarProventosFuturosCorrigidos(futuros) {
+  return futuros.filter((item) => !proventosFuturosIgnorados.some((ignorado) => (
+    ignorado.ticker === item.ticker
+    && ignorado.dataPagamento === formatarDataApi(item.dataPagamento)
+  )));
 }
 
 function combinarProventosRecebidos(manuais, calculados) {
@@ -1042,6 +1094,7 @@ function renderizarProventos() {
   proventosLista.innerHTML = "";
   proventosFuturosLista.innerHTML = "";
   proventosEstimadosLista.innerHTML = "";
+  atualizarOpcoesProventoManual();
 
   if (!proventosRecebidos.length) {
     proventosLista.innerHTML = '<p class="empty-chart">Sem proventos recebidos para as compras elegiveis.</p>';
@@ -1052,10 +1105,14 @@ function renderizarProventos() {
       .forEach((item) => {
         const row = document.createElement("div");
         row.className = "income-row";
+        const manual = String(item.fonte || "").startsWith("manual");
+        const detalhe = manual
+          ? " - lancamento real informado"
+          : ` - ${item.quantidade} cotas x ${dinheiro.format(item.valorPorCota)}`;
         row.innerHTML = `
           <div>
             <strong>${escaparHtml(item.ticker)} - ${formatarDataObjeto(item.dataPagamento)}</strong>
-            <span>${escaparHtml(item.label)}${item.fonte === "manual" ? " - lancamento real informado" : ` - ${item.quantidade} cotas x ${dinheiro.format(item.valorPorCota)}`}</span>
+            <span>${escaparHtml(item.label)}${detalhe}</span>
           </div>
           <strong>${dinheiro.format(item.total)}</strong>
         `;
@@ -1145,6 +1202,96 @@ function calcularProventosEstimados() {
     })
     .filter(Boolean)
     .sort((a, b) => a.dataPagamento - b.dataPagamento);
+}
+
+function atualizarOpcoesProventoManual() {
+  const tickers = obterResumoPorTicker()
+    .map((item) => item.ticker)
+    .filter((ticker) => ticker !== "CDBINTERDI")
+    .sort();
+  const valorAtual = inputProventoManualTicker.value;
+
+  inputProventoManualTicker.innerHTML = tickers.length
+    ? tickers.map((ticker) => `<option value="${escaparHtml(ticker)}">${escaparHtml(ticker)}</option>`).join("")
+    : '<option value="">Sem ativos</option>';
+
+  if (tickers.includes(valorAtual)) {
+    inputProventoManualTicker.value = valorAtual;
+  }
+
+  inputProventoManualTicker.disabled = !tickers.length;
+}
+
+function alternarFormularioProventoManual(mostrar = formProventoManual.hidden) {
+  formProventoManual.hidden = !mostrar;
+  btnProventoManual.setAttribute("aria-expanded", String(mostrar));
+
+  if (mostrar) {
+    atualizarOpcoesProventoManual();
+    inputProventoManualData.valueAsDate = new Date();
+    inputProventoManualTicker.focus();
+  }
+}
+
+function cancelarProventoManual() {
+  formProventoManual.reset();
+  alternarFormularioProventoManual(false);
+}
+
+function salvarProventoManual(event) {
+  event.preventDefault();
+
+  const ticker = inputProventoManualTicker.value;
+  const dataPagamento = inputProventoManualData.value;
+  const total = lerNumero(inputProventoManualValor.value);
+
+  if (!ticker) {
+    alert("Selecione um ativo.");
+    return;
+  }
+
+  if (!dataPagamento) {
+    alert("Informe a data de pagamento.");
+    return;
+  }
+
+  if (!Number.isFinite(total) || total <= 0) {
+    alert("Informe um valor valido. Exemplo: 4,50 ou 4.50");
+    return;
+  }
+
+  proventosManuaisUsuario.push({
+    id: `manual-${Date.now()}`,
+    ticker,
+    dataPagamento,
+    total,
+    fonte: "manual-usuario",
+    label: "Provento adicionado manualmente"
+  });
+  salvarProventosManuaisUsuario();
+  formProventoManual.reset();
+  alternarFormularioProventoManual(false);
+  atualizarProventos();
+}
+
+function carregarProventosManuaisUsuario() {
+  try {
+    const salvos = JSON.parse(localStorage.getItem(proventosManuaisStorageKey) || "[]");
+    proventosManuaisUsuario = Array.isArray(salvos)
+      ? salvos.filter((item) => item && item.ticker && item.dataPagamento && Number(item.total) > 0)
+      : [];
+  } catch (error) {
+    console.error("Erro ao carregar proventos manuais:", error);
+    proventosManuaisUsuario = [];
+  }
+}
+
+function salvarProventosManuaisUsuario() {
+  try {
+    localStorage.setItem(proventosManuaisStorageKey, JSON.stringify(proventosManuaisUsuario));
+  } catch (error) {
+    console.error("Erro ao salvar provento manual:", error);
+  }
 }
 
 function criarDataBrapi(valor) {
@@ -2106,6 +2253,9 @@ Object.values(filtrosCompras).forEach((campo) => {
 });
 btnLimparFiltros.addEventListener("click", limparFiltrosCompras);
 comprasToggle.addEventListener("click", alternarCompras);
+btnProventoManual.addEventListener("click", () => alternarFormularioProventoManual());
+btnCancelarProventoManual.addEventListener("click", cancelarProventoManual);
+formProventoManual.addEventListener("submit", salvarProventoManual);
 purchaseTabs.forEach((tab) => tab.addEventListener("click", () => {
   atualizarTelaPrincipal("compras");
   atualizarTipoCompra(tab.dataset.purchaseType);
@@ -2145,6 +2295,7 @@ comprasBody.addEventListener("click", (event) => {
 });
 
 definirDataPadrao();
+carregarProventosManuaisUsuario();
 atualizarTelaPrincipal("inicio");
 atualizarTipoCompra("renda-fixa");
 atualizarCampoSenha();
