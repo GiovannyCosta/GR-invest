@@ -307,27 +307,64 @@
       <div id="asset-live-list" class="asset-live-list"></div>
     </section>
 
-    <section class="panel table-panel">
+    <section class="panel table-panel" id="compras-panel">
       <div class="section-title">
-        <h2>Compras</h2>
+        <div class="table-title-group">
+          <h2>Compras</h2>
+          <button id="compras-toggle" class="collapse-toggle" type="button" aria-expanded="true" aria-controls="compras-content" title="Abrir ou fechar compras">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9l6 6l6-6"/>
+            </svg>
+          </button>
+        </div>
         <span id="empty-hint">Sem compras cadastradas</span>
       </div>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Ativo</th>
-              <th>Preco</th>
-              <th>Qtd</th>
-              <th>Total</th>
-              <th>Data</th>
-              <th>Comprador</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="compras-body"></tbody>
-        </table>
+      <div id="compras-content" class="table-content">
+        <div class="table-filters" aria-label="Filtros das compras">
+          <label>
+            <span>Ativo</span>
+            <input id="filtro-ativo" type="search" placeholder="Ex: CPTS11">
+          </label>
+          <label>
+            <span>Data</span>
+            <input id="filtro-data" type="date">
+          </label>
+          <label>
+            <span>Preco minimo</span>
+            <input id="filtro-preco-min" type="text" inputmode="decimal" placeholder="0,00">
+          </label>
+          <label>
+            <span>Preco maximo</span>
+            <input id="filtro-preco-max" type="text" inputmode="decimal" placeholder="0,00">
+          </label>
+          <label>
+            <span>Comprador</span>
+            <select id="filtro-comprador">
+              <option value="">Todos</option>
+              <option value="Giovanny">Giovanny</option>
+              <option value="Rafaela">Rafaela</option>
+            </select>
+          </label>
+          <button id="limpar-filtros" class="secondary-button table-filter-clear" type="button">Limpar</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ativo</th>
+                <th>Preco</th>
+                <th>Qtd</th>
+                <th>Total</th>
+                <th>Data</th>
+                <th>Comprador</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="compras-body"></tbody>
+          </table>
+        </div>
       </div>
     </section>
   </main>

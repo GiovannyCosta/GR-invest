@@ -142,6 +142,16 @@ const tickerWrapper = document.getElementById("ticker-wrapper");
 const priceWrapper = document.getElementById("price-wrapper");
 const precoLabelText = document.getElementById("preco-label-text");
 const qtdWrapper = document.getElementById("qtd-wrapper");
+const comprasPanel = document.getElementById("compras-panel");
+const comprasToggle = document.getElementById("compras-toggle");
+const filtrosCompras = {
+  ativo: document.getElementById("filtro-ativo"),
+  data: document.getElementById("filtro-data"),
+  precoMin: document.getElementById("filtro-preco-min"),
+  precoMax: document.getElementById("filtro-preco-max"),
+  comprador: document.getElementById("filtro-comprador")
+};
+const btnLimparFiltros = document.getElementById("limpar-filtros");
 
 const dinheiro = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -554,8 +564,20 @@ function obterValorAtualDaCompra(item) {
 
 function renderizarTabela() {
   comprasBody.innerHTML = "";
+  const comprasFiltradas = filtrarCompras(obterCarteiraComAjustes());
 
-  obterCarteiraComAjustes().forEach((item) => {
+  atualizarResumoComprasFiltradas(comprasFiltradas.length);
+
+  if (!comprasFiltradas.length) {
+    comprasBody.innerHTML = `
+      <tr>
+        <td colspan="7" class="empty-table-row">Nenhuma compra encontrada.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  comprasFiltradas.forEach((item) => {
     const total = item.precoCompra * item.quantidade;
     const tr = document.createElement("tr");
 
@@ -594,6 +616,56 @@ function renderizarTabela() {
 
     comprasBody.appendChild(tr);
   });
+}
+
+function filtrarCompras(itens) {
+  const ativo = filtrosCompras.ativo.value.trim().toLowerCase();
+  const data = filtrosCompras.data.value;
+  const precoMin = lerFiltroPreco(filtrosCompras.precoMin.value);
+  const precoMax = lerFiltroPreco(filtrosCompras.precoMax.value);
+  const comprador = filtrosCompras.comprador.value;
+
+  return itens.filter((item) => {
+    const tickerOk = !ativo || item.ticker.toLowerCase().includes(ativo);
+    const dataOk = !data || item.data === data;
+    const precoMinOk = !Number.isFinite(precoMin) || item.precoCompra >= precoMin;
+    const precoMaxOk = !Number.isFinite(precoMax) || item.precoCompra <= precoMax;
+    const compradorOk = !comprador || item.comprador === comprador;
+
+    return tickerOk && dataOk && precoMinOk && precoMaxOk && compradorOk;
+  });
+}
+
+function lerFiltroPreco(valor) {
+  const texto = String(valor).trim();
+  return texto ? lerNumero(texto) : NaN;
+}
+
+function atualizarResumoComprasFiltradas(totalFiltrado) {
+  if (!carteira.length) {
+    emptyHint.textContent = "Sem compras cadastradas";
+    return;
+  }
+
+  const totalGeral = obterCarteiraComAjustes().length;
+  const filtrosAtivos = Object.values(filtrosCompras).some((campo) => campo.value);
+  const textoCompra = totalFiltrado === 1 ? "compra" : "compras";
+
+  emptyHint.textContent = filtrosAtivos
+    ? `${totalFiltrado} ${textoCompra} de ${totalGeral}`
+    : `${totalFiltrado} ${textoCompra}`;
+}
+
+function limparFiltrosCompras() {
+  Object.values(filtrosCompras).forEach((campo) => {
+    campo.value = "";
+  });
+  renderizarTabela();
+}
+
+function alternarCompras() {
+  const fechado = comprasPanel.classList.toggle("is-collapsed");
+  comprasToggle.setAttribute("aria-expanded", String(!fechado));
 }
 
 function renderizarGraficos() {
@@ -2028,6 +2100,12 @@ mainNavTabs.forEach((tab) => tab.addEventListener("click", () => atualizarTelaPr
 chartTabs.forEach((tab) => tab.addEventListener("click", () => atualizarAbaGrafico(tab.dataset.chartView)));
 patrimonioPeriodo.addEventListener("change", renderizarEvolucaoPatrimonio);
 patrimonioTipo.addEventListener("change", renderizarEvolucaoPatrimonio);
+Object.values(filtrosCompras).forEach((campo) => {
+  campo.addEventListener("input", renderizarTabela);
+  campo.addEventListener("change", renderizarTabela);
+});
+btnLimparFiltros.addEventListener("click", limparFiltrosCompras);
+comprasToggle.addEventListener("click", alternarCompras);
 purchaseTabs.forEach((tab) => tab.addEventListener("click", () => {
   atualizarTelaPrincipal("compras");
   atualizarTipoCompra(tab.dataset.purchaseType);
