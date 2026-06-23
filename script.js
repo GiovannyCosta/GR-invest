@@ -52,15 +52,24 @@ const proventosFuturosIgnorados = [
 ];
 
 const referenciaInter = {
-  data: "2026-06-12",
+  data: "2026-06-23",
+  quantidades: {
+    CPTS11: 80,
+    GGRC11: 45,
+    BBAS3: 5,
+    ALZR11: 20
+  },
   custos: {
-    CPTS11: 547.17,
-    GGRC11: 456.75
+    CPTS11: 630.40,
+    GGRC11: 456.75,
+    BBAS3: 96.95,
+    ALZR11: 201.80
   },
   cotacoes: {
-    CPTS11: 7.60,
-    GGRC11: 9.94,
-    ALZR11: 10.05
+    CPTS11: 7.27,
+    GGRC11: 9.88,
+    BBAS3: 19.60,
+    ALZR11: 9.75
   },
   rendaFixa: {
     CDBINTERDI: {
@@ -543,6 +552,11 @@ function obterCustoInvestidoDoGrupo(item) {
   return Number.isFinite(custoInter) ? custoInter : item.totalInvestido;
 }
 
+function obterQuantidadeDoGrupo(item) {
+  const quantidadeInter = referenciaInter.quantidades[item.ticker];
+  return Number.isFinite(quantidadeInter) ? quantidadeInter : item.quantidade;
+}
+
 function obterValorAtualDoGrupo(item) {
   const rendaFixa = referenciaInter.rendaFixa[item.ticker];
 
@@ -554,7 +568,7 @@ function obterValorAtualDoGrupo(item) {
   const precoAtual = Number.isFinite(cotacaoInter) ? cotacaoInter : obterPrecoAtual(item.ticker);
 
   if (Number.isFinite(precoAtual) && precoAtual > 0) {
-    return precoAtual * item.quantidade;
+    return precoAtual * obterQuantidadeDoGrupo(item);
   }
 
   if (item.ticker === "CDBINTERDI") {
@@ -839,13 +853,18 @@ function obterResumoPorTicker() {
   const totalCarteira = grupos.reduce((soma, item) => soma + obterValorAtualDoGrupo(item), 0);
 
   return grupos
-    .map((item) => ({
-      ...item,
-      total: obterValorAtualDoGrupo(item),
-      totalInvestido: obterCustoInvestidoDoGrupo(item),
-      segmento: obterSegmento(item.ticker),
-      percentual: totalCarteira ? (obterValorAtualDoGrupo(item) / totalCarteira) * 100 : 0
-    }))
+    .map((item) => {
+      const total = obterValorAtualDoGrupo(item);
+
+      return {
+        ...item,
+        quantidade: obterQuantidadeDoGrupo(item),
+        total,
+        totalInvestido: obterCustoInvestidoDoGrupo(item),
+        segmento: obterSegmento(item.ticker),
+        percentual: totalCarteira ? (total / totalCarteira) * 100 : 0
+      };
+    })
     .sort((a, b) => b.total - a.total);
 }
 
@@ -1440,8 +1459,8 @@ function criarCardAtivoAoVivo(item) {
   const cdb = rendaFixa ? calcularCdbInter(item) : null;
   const precoMercado = rendaFixa ? cdb.valorLiquido : obterPrecoAtual(item.ticker);
   const temMercado = rendaFixa || (Number.isFinite(precoMercado) && precoMercado > 0);
-  const valorMercado = rendaFixa ? cdb.valorLiquido : temMercado ? precoMercado * item.quantidade : null;
-  const ganho = rendaFixa ? cdb.rendimentoLiquido : temMercado ? valorMercado - totalInvestidoItem : null;
+  const valorMercado = rendaFixa ? cdb.valorLiquido : temMercado ? arredondarMoeda(precoMercado * item.quantidade) : null;
+  const ganho = rendaFixa ? cdb.rendimentoLiquido : temMercado ? arredondarMoeda(valorMercado - totalInvestidoItem) : null;
   const ganhoPercentual = rendaFixa ? (totalInvestidoItem ? (ganho / totalInvestidoItem) * 100 : 0) : temMercado && totalInvestidoItem ? (ganho / totalInvestidoItem) * 100 : null;
   const variacaoClasse = ganho === null ? "" : ganho >= 0 ? "positive" : "negative";
   const sinal = ganho !== null && ganho > 0 ? "+" : "";
@@ -1489,6 +1508,12 @@ function criarCardAtivoAoVivo(item) {
           <span>${rendaFixa ? "Valor bruto" : "Preco medio"}</span>
           <strong>${rendaFixa ? dinheiro.format(cdb.valorBruto) : dinheiro.format(precoMedio)}</strong>
         </div>
+        ${rendaFixa ? "" : `
+        <div>
+          <span>Custo medio</span>
+          <strong>${dinheiro.format(totalInvestidoItem)}</strong>
+        </div>
+        `}
         <div>
           <span>${rendaFixa ? "Valor liquido atual" : "Preco de mercado atual"}</span>
           <strong>${temMercado ? dinheiro.format(precoMercado) : "Aguardando"}</strong>
@@ -2118,7 +2143,8 @@ function obterSegmentoFiiConhecido(ticker) {
   const segmentos = {
     CPTS11: "Papel",
     GGRC11: "Logistico",
-    ALZR11: "Tijolo"
+    ALZR11: "Tijolo",
+    BBAS3: "Banco"
   };
 
   return segmentos[ticker] || "";
@@ -2164,6 +2190,10 @@ function formatarData(data) {
 
 function lerNumero(valor) {
   return Number(String(valor).replace(",", "."));
+}
+
+function arredondarMoeda(valor) {
+  return Math.round((Number(valor) + Number.EPSILON) * 100) / 100;
 }
 
 async function enviarCompra(payload) {
