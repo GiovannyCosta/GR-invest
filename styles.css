@@ -473,9 +473,16 @@ select:focus {
   font-size: 12px;
 }
 
+.income-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .manual-income-form {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) minmax(150px, 1fr) minmax(150px, 1fr) auto;
+  grid-template-columns: repeat(3, minmax(130px, 1fr));
   gap: 12px;
   align-items: end;
   margin-bottom: 14px;
@@ -488,6 +495,7 @@ select:focus {
 .manual-income-actions {
   display: flex;
   gap: 8px;
+  grid-column: 1 / -1;
 }
 
 .manual-income-actions .primary-button,

@@ -213,7 +213,10 @@
               <h3>Historico de proventos</h3>
               <span id="proventos-status">Aguardando carteira</span>
             </div>
-            <button id="btn-provento-manual" class="secondary-button compact-action" type="button" aria-expanded="false" aria-controls="provento-manual-form">Adicionar manualmente</button>
+            <div class="income-heading-actions">
+              <button id="btn-sincronizar-proventos" class="secondary-button compact-action" type="button">Sincronizar</button>
+              <button id="btn-provento-manual" class="secondary-button compact-action" type="button" aria-expanded="false" aria-controls="provento-manual-form">Adicionar manualmente</button>
+            </div>
           </div>
           <form id="provento-manual-form" class="manual-income-form" hidden>
             <label>
@@ -227,6 +230,18 @@
             <label>
               <span>Valor recebido</span>
               <input id="provento-manual-valor" type="text" inputmode="decimal" placeholder="0,00" required>
+            </label>
+            <label>
+              <span>Comprador</span>
+              <select id="provento-manual-comprador" required>
+                <option value="">Selecione</option>
+                <option value="Giovanny">Giovanny</option>
+                <option value="Rafaela">Rafaela</option>
+              </select>
+            </label>
+            <label>
+              <span>Senha</span>
+              <input id="provento-manual-senha" type="password" autocomplete="current-password" placeholder="Senha" required>
             </label>
             <div class="manual-income-actions">
               <button class="primary-button" type="submit">Salvar</button>

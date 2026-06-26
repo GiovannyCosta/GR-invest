@@ -112,7 +112,10 @@ const formProventoManual = document.getElementById("provento-manual-form");
 const inputProventoManualTicker = document.getElementById("provento-manual-ticker");
 const inputProventoManualData = document.getElementById("provento-manual-data");
 const inputProventoManualValor = document.getElementById("provento-manual-valor");
+const inputProventoManualComprador = document.getElementById("provento-manual-comprador");
+const inputProventoManualSenha = document.getElementById("provento-manual-senha");
 const btnCancelarProventoManual = document.getElementById("btn-cancelar-provento-manual");
+const btnSincronizarProventos = document.getElementById("btn-sincronizar-proventos");
 const assetLivePanel = document.getElementById("asset-live-panel");
 const assetLiveStatus = document.getElementById("asset-live-status");
 const assetLiveList = document.getElementById("asset-live-list");
@@ -1257,12 +1260,14 @@ function cancelarProventoManual() {
   alternarFormularioProventoManual(false);
 }
 
-function salvarProventoManual(event) {
+async function salvarProventoManual(event) {
   event.preventDefault();
 
   const ticker = inputProventoManualTicker.value;
   const dataPagamento = inputProventoManualData.value;
   const total = lerNumero(inputProventoManualValor.value);
+  const comprador = normalizarComprador(inputProventoManualComprador.value);
+  const senha = inputProventoManualSenha.value;
 
   if (!ticker) {
     alert("Selecione um ativo.");
@@ -1279,29 +1284,94 @@ function salvarProventoManual(event) {
     return;
   }
 
-  proventosManuaisUsuario.push({
+  if (!comprador) {
+    alert("O comprador precisa ser Giovanny ou Rafaela.");
+    inputProventoManualComprador.focus();
+    return;
+  }
+
+  if (!senha) {
+    alert(`Informe a senha de ${comprador}.`);
+    inputProventoManualSenha.focus();
+    return;
+  }
+
+  const botaoSalvar = formProventoManual.querySelector("button[type='submit']");
+  const textoOriginal = botaoSalvar.textContent;
+  const provento = {
     id: `manual-${Date.now()}`,
     ticker,
     dataPagamento,
     total,
+    comprador,
     fonte: "manual-usuario",
     label: "Provento adicionado manualmente"
+  };
+
+  botaoSalvar.disabled = true;
+  botaoSalvar.textContent = "Salvando...";
+
+  const { data, error } = await enviarProventoManual({
+    action: "insert",
+    provento: converterProventoParaBanco(provento),
+    senha
   });
+
+  if (error) {
+    console.error(error);
+    alert(`Nao foi possivel sincronizar agora: ${error.message}\nO provento ficou salvo neste navegador. Use Sincronizar depois.`);
+    proventosManuaisUsuario.push({ ...provento, pendenteSync: true });
+  } else {
+    proventosManuaisUsuario.push(normalizarProventoDoBanco(data) || { ...provento, sincronizado: true });
+  }
+
   salvarProventosManuaisUsuario();
   formProventoManual.reset();
   alternarFormularioProventoManual(false);
-  atualizarProventos();
+  botaoSalvar.disabled = false;
+  botaoSalvar.textContent = textoOriginal;
+  await atualizarProventos();
 }
 
-function carregarProventosManuaisUsuario() {
+async function carregarProventosManuaisUsuario() {
+  const locais = carregarProventosManuaisLocais();
+  let remotos = [];
+
+  if (db) {
+    remotos = await carregarProventosManuaisRemotos();
+  }
+
+  proventosManuaisUsuario = mesclarProventosManuais(locais, remotos);
+  salvarProventosManuaisUsuario();
+}
+
+function carregarProventosManuaisLocais() {
   try {
     const salvos = JSON.parse(localStorage.getItem(proventosManuaisStorageKey) || "[]");
-    proventosManuaisUsuario = Array.isArray(salvos)
+    return Array.isArray(salvos)
       ? salvos.filter((item) => item && item.ticker && item.dataPagamento && Number(item.total) > 0)
       : [];
   } catch (error) {
     console.error("Erro ao carregar proventos manuais:", error);
-    proventosManuaisUsuario = [];
+    return [];
+  }
+}
+
+async function carregarProventosManuaisRemotos() {
+  try {
+    const { data, error } = await db
+      .from("proventos_manuais")
+      .select("*")
+      .order("data_pagamento", { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return (data || []).map(normalizarProventoDoBanco).filter(Boolean);
+  } catch (error) {
+    console.error("Erro ao carregar proventos manuais sincronizados:", error);
+    return [];
   }
 }
 
@@ -1311,6 +1381,104 @@ function salvarProventosManuaisUsuario() {
   } catch (error) {
     console.error("Erro ao salvar provento manual:", error);
   }
+}
+
+async function sincronizarProventosManuais() {
+  btnSincronizarProventos.disabled = true;
+  const textoOriginal = btnSincronizarProventos.textContent;
+  btnSincronizarProventos.textContent = "Sincronizando...";
+
+  await carregarProventosManuaisUsuario();
+  const pendentes = proventosManuaisUsuario.filter((item) => item.pendenteSync || !item.sincronizado);
+
+  if (pendentes.length && db) {
+    const comprador = normalizarComprador(prompt("Comprador para sincronizar os proventos salvos neste aparelho:") || "");
+    if (comprador) {
+      const senha = prompt(`Senha de ${comprador}:`) || "";
+      if (senha) {
+        const { error } = await enviarProventoManual({
+          action: "upsert_many",
+          proventos: pendentes.map((item) => converterProventoParaBanco({ ...item, comprador })),
+          senha,
+          comprador
+        });
+
+        if (error) {
+          alert(`Nao foi possivel enviar os proventos locais: ${error.message}`);
+        } else {
+          await carregarProventosManuaisUsuario();
+        }
+      }
+    }
+  }
+
+  await atualizarProventos();
+  btnSincronizarProventos.disabled = false;
+  btnSincronizarProventos.textContent = textoOriginal;
+}
+
+function mesclarProventosManuais(locais, remotos) {
+  const mapa = new Map();
+
+  [...locais, ...remotos].forEach((item) => {
+    const normalizado = normalizarProventoManualArmazenado(item);
+    if (!normalizado) return;
+
+    const chave = normalizado.id || `${normalizado.ticker}|${normalizado.dataPagamento}|${normalizado.total}`;
+    const anterior = mapa.get(chave);
+    mapa.set(chave, {
+      ...anterior,
+      ...normalizado,
+      sincronizado: Boolean(normalizado.sincronizado),
+      pendenteSync: Boolean(normalizado.pendenteSync && !normalizado.sincronizado)
+    });
+  });
+
+  return [...mapa.values()];
+}
+
+function normalizarProventoManualArmazenado(item) {
+  if (!item || !item.ticker || !item.dataPagamento || Number(item.total) <= 0) {
+    return null;
+  }
+
+  return {
+    id: item.id || `manual-${item.ticker}-${item.dataPagamento}-${Number(item.total).toFixed(2)}`,
+    ticker: String(item.ticker).toUpperCase(),
+    dataPagamento: item.dataPagamento,
+    total: Number(item.total),
+    comprador: item.comprador || "",
+    fonte: item.fonte || "manual-usuario",
+    label: item.label || "Provento adicionado manualmente",
+    sincronizado: Boolean(item.sincronizado),
+    pendenteSync: Boolean(item.pendenteSync)
+  };
+}
+
+function normalizarProventoDoBanco(item) {
+  if (!item) return null;
+
+  return normalizarProventoManualArmazenado({
+    id: item.id,
+    ticker: item.ticker,
+    dataPagamento: item.data_pagamento,
+    total: item.total,
+    comprador: item.comprador,
+    fonte: "manual-usuario",
+    label: "Provento adicionado manualmente",
+    sincronizado: true,
+    pendenteSync: false
+  });
+}
+
+function converterProventoParaBanco(item) {
+  return {
+    id: item.id,
+    ticker: String(item.ticker || "").toUpperCase(),
+    data_pagamento: item.dataPagamento,
+    total: Number(item.total),
+    comprador: normalizarComprador(item.comprador)
+  };
 }
 
 function criarDataBrapi(valor) {
@@ -2220,6 +2388,30 @@ async function enviarCompra(payload) {
   }
 }
 
+async function enviarProventoManual(payload) {
+  try {
+    const response = await fetch("/.netlify/functions/proventos-manuais", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { data: null, error: { message: data.error || "Erro na funcao do Netlify." } };
+    }
+
+    return { data, error: null };
+  } catch (error) {
+    return {
+      data: null,
+      error: {
+        message: "Nao foi possivel acessar a funcao segura. No PC, rode com Netlify Dev; no site, confira o deploy."
+      }
+    };
+  }
+}
+
 function normalizarComprador(comprador) {
   const nome = String(comprador || "").trim().toLowerCase();
 
@@ -2286,6 +2478,7 @@ comprasToggle.addEventListener("click", alternarCompras);
 btnProventoManual.addEventListener("click", () => alternarFormularioProventoManual());
 btnCancelarProventoManual.addEventListener("click", cancelarProventoManual);
 formProventoManual.addEventListener("submit", salvarProventoManual);
+btnSincronizarProventos.addEventListener("click", sincronizarProventosManuais);
 purchaseTabs.forEach((tab) => tab.addEventListener("click", () => {
   atualizarTelaPrincipal("compras");
   atualizarTipoCompra(tab.dataset.purchaseType);
@@ -2324,13 +2517,17 @@ comprasBody.addEventListener("click", (event) => {
   excluirCompra(botao.dataset.id);
 });
 
-definirDataPadrao();
-carregarProventosManuaisUsuario();
-atualizarTelaPrincipal("inicio");
-atualizarTipoCompra("renda-fixa");
-atualizarCampoSenha();
-iniciarSupabase();
-carregarCarteira();
+async function iniciarAplicacao() {
+  definirDataPadrao();
+  atualizarTelaPrincipal("inicio");
+  atualizarTipoCompra("renda-fixa");
+  atualizarCampoSenha();
+  iniciarSupabase();
+  await carregarProventosManuaisUsuario();
+  carregarCarteira();
+}
+
+iniciarAplicacao();
 
 
 

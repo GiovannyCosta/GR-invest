@@ -141,3 +141,28 @@ for select
 to anon
 using (true);
 ```
+
+## Sincronizacao de Proventos Manuais
+
+Os proventos adicionados manualmente tambem podem ficar sincronizados entre celular e PC. Crie a tabela abaixo no Supabase:
+
+```sql
+create table if not exists public.proventos_manuais (
+  id text primary key,
+  ticker text not null,
+  data_pagamento date not null,
+  total numeric not null,
+  comprador text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.proventos_manuais enable row level security;
+
+create policy "Permitir leitura publica dos proventos manuais"
+on public.proventos_manuais
+for select
+to anon
+using (true);
+```
+
+A gravacao passa pela Netlify Function `proventos-manuais`, usando `SUPABASE_SERVICE_ROLE_KEY` e a senha do comprador. Depois de criar a tabela, faca um novo deploy e use o botao `Sincronizar` no celular para enviar qualquer provento que tenha ficado salvo apenas naquele aparelho.
