@@ -1388,33 +1388,55 @@ async function sincronizarProventosManuais() {
   const textoOriginal = btnSincronizarProventos.textContent;
   btnSincronizarProventos.textContent = "Sincronizando...";
 
-  await carregarProventosManuaisUsuario();
-  const pendentes = proventosManuaisUsuario.filter((item) => item.pendenteSync || !item.sincronizado);
+  try {
+    await carregarProventosManuaisUsuario();
+    const pendentes = proventosManuaisUsuario.filter((item) => item.pendenteSync || !item.sincronizado);
 
-  if (pendentes.length && db) {
-    const comprador = normalizarComprador(prompt("Comprador para sincronizar os proventos salvos neste aparelho:") || "");
-    if (comprador) {
-      const senha = prompt(`Senha de ${comprador}:`) || "";
-      if (senha) {
-        const { error } = await enviarProventoManual({
-          action: "upsert_many",
-          proventos: pendentes.map((item) => converterProventoParaBanco({ ...item, comprador })),
-          senha,
-          comprador
-        });
-
-        if (error) {
-          alert(`Nao foi possivel enviar os proventos locais: ${error.message}`);
-        } else {
-          await carregarProventosManuaisUsuario();
-        }
-      }
+    if (!db) {
+      alert("Nao foi possivel sincronizar: o Supabase nao esta configurado neste ambiente.");
+      return;
     }
-  }
 
-  await atualizarProventos();
-  btnSincronizarProventos.disabled = false;
-  btnSincronizarProventos.textContent = textoOriginal;
+    if (!pendentes.length) {
+      await atualizarProventos();
+      alert(`Sincronizacao concluida. ${proventosManuaisUsuario.length} provento(s) manual(is) carregado(s).`);
+      return;
+    }
+
+    const comprador = normalizarComprador(prompt("Comprador para sincronizar os proventos salvos neste aparelho:") || "");
+    if (!comprador) {
+      alert("Sincronizacao cancelada: comprador invalido ou nao informado.");
+      return;
+    }
+
+    const senha = prompt(`Senha de ${comprador}:`) || "";
+    if (!senha) {
+      alert("Sincronizacao cancelada: senha nao informada.");
+      return;
+    }
+
+    const { error } = await enviarProventoManual({
+      action: "upsert_many",
+      proventos: pendentes.map((item) => converterProventoParaBanco({ ...item, comprador })),
+      senha,
+      comprador
+    });
+
+    if (error) {
+      alert(`Nao foi possivel enviar os proventos locais: ${error.message}`);
+      return;
+    }
+
+    await carregarProventosManuaisUsuario();
+    await atualizarProventos();
+    alert(`Sincronizacao concluida. ${pendentes.length} provento(s) enviado(s) e ${proventosManuaisUsuario.length} provento(s) manual(is) carregado(s).`);
+  } catch (error) {
+    console.error("Erro ao sincronizar proventos manuais:", error);
+    alert("Nao foi possivel concluir a sincronizacao. Confira a tabela no Supabase e tente novamente.");
+  } finally {
+    btnSincronizarProventos.disabled = false;
+    btnSincronizarProventos.textContent = textoOriginal;
+  }
 }
 
 function mesclarProventosManuais(locais, remotos) {
