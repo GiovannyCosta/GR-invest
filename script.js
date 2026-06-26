@@ -17,7 +17,12 @@ let proventosManuaisUsuario = [];
 let cdiDiarioAtual = null;
 let tipoCompra = "renda-fixa";
 let abaGrafico = "geral";
+let comprasHistoricoCompleto = false;
+let proventosHistoricoCompleto = false;
 const proventosManuaisStorageKey = "gr-invest-proventos-manuais";
+const metaCarteiraStorageKey = "gr-invest-meta-carteira";
+const limiteHistoricoResumo = 5;
+const canvasesAnimados = new Set();
 
 const saldoAntigoCdbInter = {
   id: "saldo-antigo-cdb-inter",
@@ -116,6 +121,7 @@ const inputProventoManualComprador = document.getElementById("provento-manual-co
 const inputProventoManualSenha = document.getElementById("provento-manual-senha");
 const btnCancelarProventoManual = document.getElementById("btn-cancelar-provento-manual");
 const btnSincronizarProventos = document.getElementById("btn-sincronizar-proventos");
+const btnVerProventos = document.getElementById("btn-ver-proventos");
 const assetLivePanel = document.getElementById("asset-live-panel");
 const assetLiveStatus = document.getElementById("asset-live-status");
 const assetLiveList = document.getElementById("asset-live-list");
@@ -169,6 +175,11 @@ const precoLabelText = document.getElementById("preco-label-text");
 const qtdWrapper = document.getElementById("qtd-wrapper");
 const comprasPanel = document.getElementById("compras-panel");
 const comprasToggle = document.getElementById("compras-toggle");
+const btnVerCompras = document.getElementById("btn-ver-compras");
+const inputGoalValue = document.getElementById("goal-value");
+const inputGoalMonth = document.getElementById("goal-month");
+const goalProgress = document.getElementById("goal-progress");
+const goalGap = document.getElementById("goal-gap");
 const filtrosCompras = {
   ativo: document.getElementById("filtro-ativo"),
   data: document.getElementById("filtro-data"),
@@ -504,6 +515,7 @@ function atualizarDashboard() {
   totalAcoes.textContent = String(quantidade);
   totalProventos.textContent = dinheiro.format(totalRecebido);
   patrimonioProventos.textContent = dinheiro.format(patrimonioAtual + totalRecebido);
+  renderizarMetaCarteira(patrimonioAtual + totalRecebido);
   totalItens.textContent = `${tickersUnicos} ${tickersUnicos === 1 ? "ativo" : "ativos"}`;
   emptyHint.textContent = carteira.length ? `${carteira.length} compras` : "Sem compras cadastradas";
 
@@ -595,8 +607,15 @@ function obterValorAtualDaCompra(item) {
 function renderizarTabela() {
   comprasBody.innerHTML = "";
   const comprasFiltradas = filtrarCompras(obterCarteiraComAjustes());
+  const comprasOrdenadas = comprasFiltradas
+    .slice()
+    .sort((a, b) => new Date(`${b.data}T00:00:00`) - new Date(`${a.data}T00:00:00`));
+  const comprasVisiveis = comprasHistoricoCompleto
+    ? comprasOrdenadas
+    : comprasOrdenadas.slice(0, limiteHistoricoResumo);
 
   atualizarResumoComprasFiltradas(comprasFiltradas.length);
+  atualizarBotaoHistoricoCompras(comprasFiltradas.length);
 
   if (!comprasFiltradas.length) {
     comprasBody.innerHTML = `
@@ -607,7 +626,7 @@ function renderizarTabela() {
     return;
   }
 
-  comprasFiltradas.forEach((item) => {
+  comprasVisiveis.forEach((item) => {
     const total = item.precoCompra * item.quantidade;
     const tr = document.createElement("tr");
 
@@ -696,6 +715,16 @@ function limparFiltrosCompras() {
 function alternarCompras() {
   const fechado = comprasPanel.classList.toggle("is-collapsed");
   comprasToggle.setAttribute("aria-expanded", String(!fechado));
+}
+
+function alternarHistoricoCompras() {
+  comprasHistoricoCompleto = !comprasHistoricoCompleto;
+  renderizarTabela();
+}
+
+function atualizarBotaoHistoricoCompras(total) {
+  btnVerCompras.hidden = total <= limiteHistoricoResumo;
+  btnVerCompras.textContent = comprasHistoricoCompleto ? "Ver ultimas 5" : "Ver historico completo";
 }
 
 function renderizarGraficos() {
@@ -1117,6 +1146,7 @@ function renderizarProventos() {
   proventosFuturosLista.innerHTML = "";
   proventosEstimadosLista.innerHTML = "";
   atualizarOpcoesProventoManual();
+  atualizarBotaoHistoricoProventos();
 
   if (!proventosRecebidos.length) {
     proventosLista.innerHTML = '<p class="empty-chart">Sem proventos recebidos para as compras elegiveis.</p>';
@@ -1124,6 +1154,7 @@ function renderizarProventos() {
     proventosRecebidos
       .slice()
       .sort((a, b) => b.dataPagamento - a.dataPagamento)
+      .slice(0, proventosHistoricoCompleto ? proventosRecebidos.length : limiteHistoricoResumo)
       .forEach((item) => {
         const row = document.createElement("div");
         row.className = "income-row";
@@ -1163,6 +1194,16 @@ function renderizarProventos() {
   }
 
   renderizarProventosEstimados();
+}
+
+function alternarHistoricoProventos() {
+  proventosHistoricoCompleto = !proventosHistoricoCompleto;
+  renderizarProventos();
+}
+
+function atualizarBotaoHistoricoProventos() {
+  btnVerProventos.hidden = proventosRecebidos.length <= limiteHistoricoResumo;
+  btnVerProventos.textContent = proventosHistoricoCompleto ? "Ver ultimos 5" : "Ver historico completo";
 }
 
 function renderizarProventosEstimados() {
@@ -1381,6 +1422,101 @@ function salvarProventosManuaisUsuario() {
   } catch (error) {
     console.error("Erro ao salvar provento manual:", error);
   }
+}
+
+function carregarMetaCarteira() {
+  try {
+    const meta = JSON.parse(localStorage.getItem(metaCarteiraStorageKey) || "{}");
+
+    if (Number(meta.valor) > 0) {
+      inputGoalValue.value = formatarMetaInput(String(meta.valor).replace(".", ","));
+    }
+
+    if (meta.mes) {
+      inputGoalMonth.value = meta.mes;
+    }
+  } catch (error) {
+    console.error("Erro ao carregar meta:", error);
+  }
+}
+
+function salvarMetaCarteira() {
+  const valorMeta = lerValorMeta(inputGoalValue.value);
+  inputGoalValue.value = formatarMetaInput(inputGoalValue.value);
+
+  const meta = {
+    valor: valorMeta,
+    mes: inputGoalMonth.value
+  };
+
+  try {
+    localStorage.setItem(metaCarteiraStorageKey, JSON.stringify(meta));
+  } catch (error) {
+    console.error("Erro ao salvar meta:", error);
+  }
+
+  atualizarDashboard();
+}
+
+function renderizarMetaCarteira(saldoComProventos) {
+  const meta = lerValorMeta(inputGoalValue.value);
+  const mes = inputGoalMonth.value;
+
+  if (!Number.isFinite(meta) || meta <= 0) {
+    goalProgress.textContent = "0%";
+    goalGap.innerHTML = "Defina uma meta";
+    return;
+  }
+
+  const progresso = Math.min(999, (saldoComProventos / meta) * 100);
+  const faltante = Math.max(0, meta - saldoComProventos);
+  const prazo = mes ? ` ate ${formatarMesMeta(mes)}` : "";
+  const mesesRestantes = mes ? obterMesesRestantesAteMeta(mes) : null;
+  const aporteMensal = mesesRestantes ? faltante / mesesRestantes : 0;
+
+  goalProgress.textContent = `${progresso.toFixed(1)}%`;
+  goalGap.innerHTML = faltante > 0
+    ? `<span class="goal-missing">${dinheiro.format(faltante)} faltando${prazo}</span>${mesesRestantes ? `<span>${dinheiro.format(aporteMensal)} por mes para chegar na meta</span>` : ""}`
+    : `<span class="goal-hit">Meta batida${prazo}</span>`;
+}
+
+function formatarMesMeta(valor) {
+  const [ano, mes] = String(valor).split("-");
+
+  if (!ano || !mes) return "";
+
+  return `${mes}/${ano}`;
+}
+
+function obterMesesRestantesAteMeta(valor) {
+  const [ano, mes] = String(valor).split("-").map(Number);
+
+  if (!ano || !mes) return null;
+
+  const hoje = new Date();
+  const atual = hoje.getFullYear() * 12 + hoje.getMonth();
+  const alvo = ano * 12 + (mes - 1);
+
+  return Math.max(1, alvo - atual + 1);
+}
+
+function lerValorMeta(valor) {
+  const texto = String(valor || "").trim();
+  if (!texto) return NaN;
+
+  return Number(texto.replace(/\./g, "").replace(",", "."));
+}
+
+function formatarMetaInput(valor) {
+  const texto = String(valor || "").replace(/[^\d,]/g, "");
+  const [inteiroBruto, decimalBruto = ""] = texto.split(",");
+  const inteiro = inteiroBruto.replace(/^0+(?=\d)/, "");
+  const inteiroFormatado = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const decimal = decimalBruto.slice(0, 2);
+
+  if (!inteiroFormatado && !decimal) return "";
+  if (texto.includes(",")) return `${inteiroFormatado || "0"},${decimal}`;
+  return inteiroFormatado;
 }
 
 async function sincronizarProventosManuais() {
@@ -1791,6 +1927,7 @@ function renderizarDonut(dados, contexto, canvasAlvo, legenda, opcoes = {}) {
   const centroX = configGrafico.centroX;
   const centroY = configGrafico.centroY;
   const raio = configGrafico.raio;
+  const fatiasPreparadas = [];
   let anguloAtual = -Math.PI / 2;
 
   dados.forEach((item, index) => {
@@ -1798,20 +1935,10 @@ function renderizarDonut(dados, contexto, canvasAlvo, legenda, opcoes = {}) {
     const inicio = anguloAtual;
     const fim = anguloAtual + angulo;
     const cor = corDoTicker(item.ticker);
-
-    contexto.beginPath();
-    contexto.moveTo(centroX, centroY);
-    contexto.arc(centroX, centroY, raio, inicio, fim);
-    contexto.closePath();
-    contexto.fillStyle = cor;
-    contexto.fill();
-    contexto.strokeStyle = "#20242d";
-    contexto.lineWidth = 4;
-    contexto.stroke();
-
     const itemLegenda = criarItemLegenda(item, cor, index);
+
     legenda.appendChild(itemLegenda);
-    fatias.push({
+    fatiasPreparadas.push({
       ...item,
       inicio,
       fim,
@@ -1825,17 +1952,69 @@ function renderizarDonut(dados, contexto, canvasAlvo, legenda, opcoes = {}) {
     anguloAtual = fim;
   });
 
+  fatias.push(...fatiasPreparadas);
+  desenharDonut(contexto, canvasAlvo, fatiasPreparadas, configGrafico, 1);
+  animarDonutAoAbrir(contexto, canvasAlvo, fatiasPreparadas, configGrafico);
+}
+
+function animarDonutAoAbrir(contexto, canvasAlvo, fatias, configGrafico) {
+  if (canvasesAnimados.has(canvasAlvo)) {
+    return;
+  }
+
+  canvasesAnimados.add(canvasAlvo);
+  const duracao = 900;
+  const inicio = performance.now();
+
+  function animar(agora) {
+    const progressoLinear = Math.min(1, (agora - inicio) / duracao);
+    const progresso = 1 - Math.pow(1 - progressoLinear, 3);
+
+    desenharDonut(contexto, canvasAlvo, fatias, configGrafico, progresso);
+
+    if (progressoLinear < 1) {
+      requestAnimationFrame(animar);
+    }
+  }
+
+  desenharDonut(contexto, canvasAlvo, fatias, configGrafico, 0.02);
+  requestAnimationFrame(animar);
+}
+
+function desenharDonut(contexto, canvasAlvo, fatias, configGrafico, progresso) {
+  const limite = -Math.PI / 2 + Math.PI * 2 * progresso;
+
+  contexto.clearRect(0, 0, canvasAlvo.width, canvasAlvo.height);
+
+  fatias.forEach((item) => {
+    const fim = Math.min(item.fim, limite);
+
+    if (fim <= item.inicio) {
+      return;
+    }
+
+    contexto.beginPath();
+    contexto.moveTo(item.centroX, item.centroY);
+    contexto.arc(item.centroX, item.centroY, item.raio, item.inicio, fim);
+    contexto.closePath();
+    contexto.fillStyle = item.cor;
+    contexto.fill();
+    contexto.strokeStyle = "#20242d";
+    contexto.lineWidth = 4;
+    contexto.stroke();
+  });
+
   contexto.beginPath();
-  contexto.arc(centroX, centroY, configGrafico.raioInterno, 0, Math.PI * 2);
+  contexto.arc(configGrafico.centroX, configGrafico.centroY, configGrafico.raioInterno, 0, Math.PI * 2);
   contexto.fillStyle = "#20242d";
   contexto.fill();
   contexto.fillStyle = "#eef3f8";
   contexto.font = "bold 18px Arial";
   contexto.textAlign = "center";
-  contexto.fillText(`${dados.length}`, centroX, centroY - 2);
+  contexto.fillText(`${fatias.length}`, configGrafico.centroX, configGrafico.centroY - 2);
   contexto.fillStyle = "#9aa6b5";
   contexto.font = "13px Arial";
-  contexto.fillText(dados.length === 1 ? configGrafico.singular : configGrafico.plural, centroX, centroY + 18);
+  contexto.fillText(fatias.length === 1 ? configGrafico.singular : configGrafico.plural, configGrafico.centroX, configGrafico.centroY + 18);
   contexto.textAlign = "left";
 }
 function renderizarGraficoBarras(dados, container = barrasCarteira) {
@@ -2040,7 +2219,7 @@ function calcularPatrimonioDoMes(mes, tipoSelecionado) {
   const aporteMensal = comprasNoMes.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
   const valorMercado = comprasDoMes.reduce((soma, item) => {
     if (item.ticker === "CDBINTERDI") {
-      return soma + item.precoCompra * item.quantidade;
+      return soma + calcularCdbInter({ ...item, aplicacoes: [item] }).valorLiquido;
     }
 
     const cotacao = obterPrecoAtual(item.ticker);
@@ -2376,19 +2555,19 @@ function criarIconeTicker(ticker) {
 
 function corDoTicker(ticker) {
   const coresFixas = {
-    FIIs: "#4389ed",
-    Acoes: "#69dfad",
-    "Renda fixa": "#ffdf61",
-    Giovanny: "#e39a22",
-    Rafaela: "#087da0",
-    CDBINTERDI: "#ffdf61"
+    FIIs: "#2f8cff",
+    Acoes: "#32f09b",
+    "Renda fixa": "#ffd23f",
+    Giovanny: "#ff9f1c",
+    Rafaela: "#00b8d9",
+    CDBINTERDI: "#ffd23f"
   };
 
   if (coresFixas[ticker]) {
     return coresFixas[ticker];
   }
 
-  const cores = ["#6752b5", "#2a8196", "#ff7575", "#4fd2d8", "#b66cff", "#ff955c"];
+  const cores = ["#7c4dff", "#00c2ff", "#ff4d6d", "#00e5a8", "#c77dff", "#ff7a2f", "#f9dc3c", "#2f8cff"];
   const soma = ticker.split("").reduce((total, letra) => total + letra.charCodeAt(0), 0);
   return cores[soma % cores.length];
 }
@@ -2518,10 +2697,14 @@ Object.values(filtrosCompras).forEach((campo) => {
 });
 btnLimparFiltros.addEventListener("click", limparFiltrosCompras);
 comprasToggle.addEventListener("click", alternarCompras);
+btnVerCompras.addEventListener("click", alternarHistoricoCompras);
 btnProventoManual.addEventListener("click", () => alternarFormularioProventoManual());
 btnCancelarProventoManual.addEventListener("click", cancelarProventoManual);
 formProventoManual.addEventListener("submit", salvarProventoManual);
 btnSincronizarProventos.addEventListener("click", sincronizarProventosManuais);
+btnVerProventos.addEventListener("click", alternarHistoricoProventos);
+inputGoalValue.addEventListener("input", salvarMetaCarteira);
+inputGoalMonth.addEventListener("change", salvarMetaCarteira);
 purchaseTabs.forEach((tab) => tab.addEventListener("click", () => {
   atualizarTelaPrincipal("compras");
   atualizarTipoCompra(tab.dataset.purchaseType);
@@ -2566,6 +2749,7 @@ async function iniciarAplicacao() {
   atualizarTipoCompra("renda-fixa");
   atualizarCampoSenha();
   iniciarSupabase();
+  carregarMetaCarteira();
   await carregarProventosManuaisUsuario();
   carregarCarteira();
 }

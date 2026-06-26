@@ -138,6 +138,21 @@
             <h3>Carteira geral</h3>
             <span id="general-chart-total">Total da carteira</span>
           </div>
+          <div class="goal-card">
+            <div class="goal-summary">
+              <span>Meta</span>
+              <strong id="goal-progress">0%</strong>
+              <small id="goal-gap">Defina uma meta</small>
+            </div>
+            <label>
+              <span>Valor</span>
+              <input id="goal-value" type="text" inputmode="decimal" placeholder="6000,00">
+            </label>
+            <label>
+              <span>Ate</span>
+              <input id="goal-month" type="month">
+            </label>
+          </div>
           <div class="charts">
             <div class="pie-area">
               <canvas id="grafico-pizza" width="360" height="280" aria-label="Distribuicao geral da carteira em pizza"></canvas>
@@ -215,6 +230,7 @@
             </div>
             <div class="income-heading-actions">
               <button id="btn-sincronizar-proventos" class="secondary-button compact-action" type="button">Sincronizar</button>
+              <button id="btn-ver-proventos" class="secondary-button compact-action" type="button">Ver historico completo</button>
               <button id="btn-provento-manual" class="secondary-button compact-action" type="button" aria-expanded="false" aria-controls="provento-manual-form">Adicionar manualmente</button>
             </div>
           </div>
@@ -346,6 +362,7 @@
       <div class="section-title">
         <div class="table-title-group">
           <h2>Compras</h2>
+          <button id="btn-ver-compras" class="secondary-button compact-action" type="button">Ver historico completo</button>
           <button id="compras-toggle" class="collapse-toggle" type="button" aria-expanded="true" aria-controls="compras-content" title="Abrir ou fechar compras">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m6 9l6 6l6-6"/>

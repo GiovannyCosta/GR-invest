@@ -480,6 +480,53 @@ select:focus {
   justify-content: flex-end;
 }
 
+.goal-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(130px, 0.8fr) minmax(130px, 0.8fr);
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #181d26;
+}
+
+.goal-summary span,
+.goal-summary small,
+.goal-card label span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.goal-summary small {
+  display: grid;
+  gap: 3px;
+  line-height: 1.35;
+}
+
+.goal-summary strong {
+  display: block;
+  margin: 3px 0;
+  color: var(--brand-strong);
+  font-size: 24px;
+}
+
+.goal-missing {
+  color: #ffcf5a;
+  font-weight: 700;
+}
+
+.goal-hit {
+  color: var(--brand-strong);
+  font-weight: 700;
+}
+
+.goal-card input {
+  min-height: 40px;
+}
+
 .manual-income-form {
   display: grid;
   grid-template-columns: repeat(3, minmax(130px, 1fr));
@@ -575,6 +622,12 @@ select:focus {
 
 .secondary-button:hover {
   background: #f4f6f8;
+}
+
+.secondary-button:disabled,
+.primary-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .icon-button,
@@ -892,6 +945,10 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .goal-card {
+    grid-template-columns: 1fr;
+  }
+
   .metrics {
     grid-template-columns: 1fr;
   }
@@ -1166,6 +1223,12 @@ select,
   border-color: var(--line);
   background: #181d26;
   color: var(--ink);
+}
+
+.secondary-button:disabled {
+  background: #303846;
+  color: #c9d3df;
+  border-color: #4a5565;
 }
 
 input::placeholder {
