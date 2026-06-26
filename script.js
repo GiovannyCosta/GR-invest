@@ -1403,9 +1403,15 @@ async function sincronizarProventosManuais() {
       return;
     }
 
-    const comprador = normalizarComprador(prompt("Comprador para sincronizar os proventos salvos neste aparelho:") || "");
+    const comprador = obterCompradorParaSincronizar(pendentes);
     if (!comprador) {
       alert("Sincronizacao cancelada: comprador invalido ou nao informado.");
+      return;
+    }
+
+    const confirmar = confirm(`Sincronizar ${pendentes.length} provento(s) manual(is) como ${comprador}?`);
+    if (!confirmar) {
+      alert("Sincronizacao cancelada.");
       return;
     }
 
@@ -1437,6 +1443,21 @@ async function sincronizarProventosManuais() {
     btnSincronizarProventos.disabled = false;
     btnSincronizarProventos.textContent = textoOriginal;
   }
+}
+
+function obterCompradorParaSincronizar(pendentes) {
+  const compradores = [...new Set(
+    pendentes
+      .map((item) => normalizarComprador(item.comprador))
+      .filter(Boolean)
+  )];
+
+  if (compradores.length === 1) {
+    return compradores[0];
+  }
+
+  const informado = prompt("Digite o comprador para sincronizar: Giovanny ou Rafaela. Depois sera pedida a senha.");
+  return normalizarComprador(informado || "");
 }
 
 function mesclarProventosManuais(locais, remotos) {
