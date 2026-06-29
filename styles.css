@@ -1,15 +1,27 @@
 ﻿:root {
-  --bg: #11151d;
-  --panel: #20242d;
-  --panel-soft: #242a34;
-  --ink: #eef3f8;
-  --muted: #9aa6b5;
-  --line: #333a46;
-  --brand: #2aad7d;
-  --brand-strong: #35c592;
-  --accent: #e39a22;
-  --danger: #ff6b70;
-  --blue: #4389ed;
+  --bg-ink-black: #091016;
+  --bg-white: #f0f4ef;
+  --text-black: #08090a;
+  --text-white: #f0f4ef;
+  --text-metal: #343a40;
+  --primary-pink: #fc6471;
+  --secondary-green: #98ce00;
+  --font-main: "DM Sans", Arial, sans-serif;
+  --font-mono: "DM Mono", monospace;
+  --font-display: "Playfair Display", serif;
+  --max-width: 1200px;
+  --header-height: 72px;
+  --bg: var(--bg-ink-black);
+  --panel: #111920;
+  --panel-soft: #17222a;
+  --ink: var(--text-white);
+  --muted: #a8b3ad;
+  --line: #26343d;
+  --brand: var(--secondary-green);
+  --brand-strong: #b4ef18;
+  --accent: var(--primary-pink);
+  --danger: var(--primary-pink);
+  --blue: #7bb7ff;
   --shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
 }
 
@@ -21,7 +33,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-main);
 }
 
 button,
@@ -132,7 +144,7 @@ h3 {
 
 .main-nav-tab:hover,
 .main-nav-tab.is-active {
-  border-color: #dce4eb;
+  border-color: var(--secondary-green);
   color: var(--ink);
 }
 
@@ -223,8 +235,8 @@ h3 {
 }
 
 .chart-filter select:focus {
-  border-color: #8dddcf;
-  box-shadow: 0 0 0 3px rgba(141, 221, 207, 0.14);
+  border-color: var(--secondary-green);
+  box-shadow: 0 0 0 3px rgba(152, 206, 0, 0.18);
 }
 
 .patrimonio-divider {
@@ -417,12 +429,12 @@ select {
 
 input:focus {
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(18, 107, 92, 0.14);
+  box-shadow: 0 0 0 3px rgba(152, 206, 0, 0.18);
 }
 
 select:focus {
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(18, 107, 92, 0.14);
+  box-shadow: 0 0 0 3px rgba(152, 206, 0, 0.18);
 }
 
 .price-box,
@@ -603,25 +615,28 @@ select:focus {
   min-height: 46px;
   border-radius: 6px;
   background: var(--brand);
-  color: #ffffff;
+  color: var(--text-black);
   font-weight: 700;
 }
 
 .primary-button:hover {
-  background: var(--brand-strong);
+  background: var(--primary-pink);
+  color: var(--text-white);
 }
 
 .secondary-button {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #ffffff;
-  color: var(--ink);
+  background: transparent;
+  color: var(--text-white);
   font-weight: 700;
 }
 
 .secondary-button:hover {
-  background: #f4f6f8;
+  border-color: var(--secondary-green);
+  background: rgba(152, 206, 0, 0.14);
+  color: var(--secondary-green);
 }
 
 .secondary-button:disabled,
@@ -1031,7 +1046,7 @@ th {
 .purchase-tab.is-active {
   border-color: var(--brand);
   background: var(--brand);
-  color: #ffffff;
+  color: var(--text-black);
 }
 
 .cdb-card {
@@ -1109,7 +1124,7 @@ th {
 .chart-tab.is-active {
   border-color: var(--brand);
   background: var(--brand);
-  color: #ffffff;
+  color: var(--text-black);
 }
 
 .chart-view {
@@ -1193,9 +1208,9 @@ body {
 
 .trade-nav .purchase-tab:hover,
 .trade-nav .purchase-tab.is-active {
-  border-color: #dce4eb;
+  border-color: var(--secondary-green);
   background: transparent;
-  color: var(--ink);
+  color: var(--secondary-green);
 }
 
 .panel,
@@ -1221,14 +1236,14 @@ select,
 .chart-tab,
 .purchase-tab {
   border-color: var(--line);
-  background: #181d26;
+  background: #0d151b;
   color: var(--ink);
 }
 
 .secondary-button:disabled {
-  background: #303846;
-  color: #c9d3df;
-  border-color: #4a5565;
+  background: #17222a;
+  color: #6f7b74;
+  border-color: #26343d;
 }
 
 input::placeholder {
@@ -1238,16 +1253,17 @@ input::placeholder {
 input:focus,
 select:focus {
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(42, 173, 125, 0.16);
+  box-shadow: 0 0 0 3px rgba(152, 206, 0, 0.18);
 }
 
 .primary-button {
   background: var(--brand);
-  color: #08120f;
+  color: var(--text-black);
 }
 
 .primary-button:hover {
-  background: var(--brand-strong);
+  background: var(--primary-pink);
+  color: var(--text-white);
 }
 
 .icon-button,
@@ -1260,9 +1276,9 @@ select:focus {
 .chart-tab.is-active,
 .purchase-tab:hover,
 .purchase-tab.is-active {
-  border-color: #596372;
-  background: #303744;
-  color: var(--ink);
+  border-color: var(--secondary-green);
+  background: rgba(152, 206, 0, 0.16);
+  color: var(--secondary-green);
 }
 
 .charts {
