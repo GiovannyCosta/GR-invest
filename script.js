@@ -22,7 +22,10 @@ let proventosHistoricoCompleto = false;
 const proventosManuaisStorageKey = "gr-invest-proventos-manuais";
 const metaCarteiraStorageKey = "gr-invest-meta-carteira";
 const limiteHistoricoResumo = 5;
+const intervaloAtualizacaoMercadoMs = 15 * 60 * 1000;
 const canvasesAnimados = new Set();
+let mercadoAtualizacaoTimer = null;
+let mercadoAtualizando = false;
 
 const saldoAntigoCdbInter = {
   id: "saldo-antigo-cdb-inter",
@@ -293,10 +296,9 @@ async function carregarCarteira() {
   }));
 
   connectionStatus.textContent = "Conectado";
+  await atualizarMercadoCarteira();
   atualizarDashboard();
-  atualizarCotacoesCarteira();
   atualizarProventos();
-  atualizarCdi();
 }
 
 async function buscarCotacao(ticker) {
@@ -900,13 +902,48 @@ function obterResumoPorTicker() {
     .sort((a, b) => b.total - a.total);
 }
 
+async function atualizarMercadoCarteira() {
+  if (mercadoAtualizando) {
+    return;
+  }
+
+  mercadoAtualizando = true;
+  btnRefresh.disabled = true;
+
+  try {
+    await Promise.all([
+      atualizarCotacoesCarteira(),
+      atualizarCdi()
+    ]);
+    atualizarDashboard();
+  } finally {
+    mercadoAtualizando = false;
+    btnRefresh.disabled = false;
+  }
+}
+
+function iniciarAtualizacaoAutomaticaMercado() {
+  if (mercadoAtualizacaoTimer) {
+    clearInterval(mercadoAtualizacaoTimer);
+  }
+
+  mercadoAtualizacaoTimer = setInterval(() => {
+    if (carteira.length) {
+      atualizarMercadoCarteira();
+    }
+  }, intervaloAtualizacaoMercadoMs);
+}
+
+async function atualizarTudoAgora() {
+  await carregarCarteira();
+}
+
 async function atualizarCotacoesCarteira() {
   const tickers = [...new Set(carteira.map((item) => item.ticker).filter((ticker) => ticker !== "CDBINTERDI"))];
 
   if (!tickers.length) {
     cotacoesAtuais = {};
     assetLiveStatus.textContent = "Sem ativos";
-    renderizarAtivosAoVivo();
     return;
   }
 
@@ -924,10 +961,15 @@ async function atualizarCotacoesCarteira() {
     return mapa;
   }, {});
 
-  assetLiveStatus.textContent = "Mercado atualizado";
-  renderizarGraficos();
-  renderizarAtivosAoVivo();
-  renderizarEvolucaoPatrimonio();
+  const falhas = resultados.filter(([, cotacao]) => !cotacao).length;
+  const horario = new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date());
+
+  assetLiveStatus.textContent = falhas
+    ? `Mercado atualizado ${horario} - ${falhas} sem cotacao`
+    : `Mercado atualizado ${horario}`;
 }
 
 async function buscarCotacaoSilenciosa(ticker) {
@@ -1015,11 +1057,9 @@ async function atualizarCdi() {
     }
 
     cdiDiarioAtual = lerNumero(ultimo.valor);
-    renderizarAtivosAoVivo();
   } catch (error) {
     console.error("Erro ao buscar CDI:", error);
     cdiDiarioAtual = null;
-    renderizarAtivosAoVivo();
   }
 }
 
@@ -2484,19 +2524,19 @@ function obterSegmento(ticker) {
 }
 
 function obterPrecoAtual(ticker) {
-  const cotacaoInter = referenciaInter.cotacoes[ticker];
-
-  if (Number.isFinite(cotacaoInter)) {
-    return cotacaoInter;
-  }
-
   const cotacao = cotacoesAtuais[ticker];
 
   if (typeof cotacao === "number") {
     return cotacao;
   }
 
-  return cotacao?.preco;
+  if (Number.isFinite(cotacao?.preco) && cotacao.preco > 0) {
+    return cotacao.preco;
+  }
+
+  const cotacaoInter = referenciaInter.cotacoes[ticker];
+
+  return Number.isFinite(cotacaoInter) ? cotacaoInter : undefined;
 }
 
 function obterSegmentoDaApi(ticker, dados) {
@@ -2718,7 +2758,7 @@ btnCancelEdit.addEventListener("click", () => {
   atualizarCampoSenha();
   spanPrecoAtual.textContent = "Aguardando...";
 });
-btnRefresh.addEventListener("click", carregarCarteira);
+btnRefresh.addEventListener("click", atualizarTudoAgora);
 [canvas, canvasFiis, canvasFiisTab, canvasAcoes, canvasAcoesTab, canvasCompradores].forEach(registrarInteracaoPizza);
 canvasPatrimonio.addEventListener("mousemove", (event) => {
   const barra = obterBarraPatrimonioNoMouse(event);
@@ -2751,6 +2791,7 @@ async function iniciarAplicacao() {
   iniciarSupabase();
   carregarMetaCarteira();
   await carregarProventosManuaisUsuario();
+  iniciarAtualizacaoAutomaticaMercado();
   carregarCarteira();
 }
 
