@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 
 const headers = {
-  "Content-Type": "application/json"
+  "Content-Type": "application/json",
 };
 
 exports.handler = async (event) => {
@@ -26,7 +26,7 @@ exports.handler = async (event) => {
 
     if (missingSupabaseVars.length) {
       return resposta(500, {
-        error: `Variaveis ausentes no Netlify: ${missingSupabaseVars.join(", ")}. Configure em Site configuration > Environment variables e faca um novo deploy.`
+        error: `Variaveis ausentes no Netlify: ${missingSupabaseVars.join(", ")}. Configure em Site configuration > Environment variables e faca um novo deploy.`,
       });
     }
 
@@ -58,7 +58,7 @@ async function inserirCompra(supabaseUrl, serviceKey, compra) {
   const result = await supabaseRequest(supabaseUrl, serviceKey, "/rest/v1/compras", {
     method: "POST",
     headers: { Prefer: "return=representation" },
-    body: JSON.stringify([compra])
+    body: JSON.stringify([compra]),
   });
 
   return resposta(result.status, result.body[0] || result.body);
@@ -72,7 +72,7 @@ async function atualizarCompra(supabaseUrl, serviceKey, id, compra) {
   const result = await supabaseRequest(supabaseUrl, serviceKey, `/rest/v1/compras?id=eq.${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { Prefer: "return=representation" },
-    body: JSON.stringify(compra)
+    body: JSON.stringify(compra),
   });
 
   if (result.ok && !result.body.length) {
@@ -91,7 +91,7 @@ async function excluirCompra(supabaseUrl, serviceKey, body) {
     supabaseUrl,
     serviceKey,
     `/rest/v1/compras?id=eq.${encodeURIComponent(body.id)}&select=*`,
-    { method: "GET" }
+    { method: "GET" },
   );
   const compra = atual.body[0];
 
@@ -103,10 +103,15 @@ async function excluirCompra(supabaseUrl, serviceKey, body) {
     return resposta(401, { error: "Senha do comprador invalida." });
   }
 
-  const result = await supabaseRequest(supabaseUrl, serviceKey, `/rest/v1/compras?id=eq.${encodeURIComponent(body.id)}`, {
-    method: "DELETE",
-    headers: { Prefer: "return=representation" }
-  });
+  const result = await supabaseRequest(
+    supabaseUrl,
+    serviceKey,
+    `/rest/v1/compras?id=eq.${encodeURIComponent(body.id)}`,
+    {
+      method: "DELETE",
+      headers: { Prefer: "return=representation" },
+    },
+  );
 
   return resposta(result.status, result.body[0] || result.body);
 }
@@ -118,8 +123,8 @@ async function supabaseRequest(supabaseUrl, serviceKey, path, options) {
       apikey: serviceKey,
       Authorization: `Bearer ${serviceKey}`,
       "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
+      ...(options.headers || {}),
+    },
   });
   const text = await response.text();
   const body = text ? JSON.parse(text) : null;
@@ -135,11 +140,13 @@ function validarCompra(compra) {
   if (!compra) return { ok: false, error: "Compra nao enviada." };
 
   const data = {
-    ticker: String(compra.ticker || "").trim().toUpperCase(),
+    ticker: String(compra.ticker || "")
+      .trim()
+      .toUpperCase(),
     preco_compra: Number(compra.preco_compra),
     quantidade: Number(compra.quantidade),
     data_compra: String(compra.data_compra || ""),
-    comprador: normalizarComprador(compra.comprador)
+    comprador: normalizarComprador(compra.comprador),
   };
 
   if (!data.ticker) return { ok: false, error: "Ticker obrigatorio." };
@@ -164,7 +171,9 @@ function senhaValida(comprador, senha) {
 }
 
 function normalizarComprador(comprador) {
-  const nome = String(comprador || "").trim().toLowerCase();
+  const nome = String(comprador || "")
+    .trim()
+    .toLowerCase();
 
   if (nome === "giovanny") return "Giovanny";
   if (nome === "rafaela") return "Rafaela";
@@ -175,6 +184,6 @@ function resposta(statusCode, body) {
   return {
     statusCode,
     headers,
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   };
 }
