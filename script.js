@@ -24,6 +24,11 @@ const metaCarteiraStorageKey = "gr-invest-meta-carteira";
 const limiteHistoricoResumo = 5;
 const intervaloAtualizacaoMercadoMs = 15 * 60 * 1000;
 const metaMensalPatrimonio = 1200;
+const coresGraficoPatrimonio = {
+  aporte: "#28a977",
+  aporteAcimaMeta: "#38d982",
+  ganhoMes: "#cb7fe2",
+};
 const canvasesAnimados = new Set();
 let mercadoAtualizacaoTimer = null;
 let mercadoAtualizando = false;
@@ -35,7 +40,7 @@ const saldoAntigoCdbInter = {
   quantidade: 1,
   data: "2026-04-09",
   comprador: "Giovanny",
-  virtual: true
+  virtual: true,
 };
 
 const cdbInterConfig = {
@@ -45,20 +50,18 @@ const cdbInterConfig = {
   percentualCdi: 1,
   valorMinimo: 1,
   liquidez: "Imediato",
-  garantia: "FGC ate R$ 250 mil"
+  garantia: "FGC ate R$ 250 mil",
 };
 
 const historicoManualProventos = [
-  { ticker: "CPTS11", dataPagamento: "2026-04-19", total: 4.50, fonte: "manual" },
-  { ticker: "GGRC11", dataPagamento: "2026-04-30", total: 3.00, fonte: "manual" },
-  { ticker: "CPTS11", dataPagamento: "2026-05-18", total: 4.50, fonte: "manual" },
-  { ticker: "GGRC11", dataPagamento: "2026-05-20", total: 4.50, fonte: "manual" },
-  { ticker: "GGRC11", dataPagamento: "2026-06-09", valorPorCota: 0.10, fonte: "manual", label: "Provento recebido" }
+  { ticker: "CPTS11", dataPagamento: "2026-04-19", total: 4.5, fonte: "manual" },
+  { ticker: "GGRC11", dataPagamento: "2026-04-30", total: 3.0, fonte: "manual" },
+  { ticker: "CPTS11", dataPagamento: "2026-05-18", total: 4.5, fonte: "manual" },
+  { ticker: "GGRC11", dataPagamento: "2026-05-20", total: 4.5, fonte: "manual" },
+  { ticker: "GGRC11", dataPagamento: "2026-06-09", valorPorCota: 0.1, fonte: "manual", label: "Provento recebido" },
 ];
 
-const proventosFuturosIgnorados = [
-  { ticker: "GGRC11", dataPagamento: "2026-07-20" }
-];
+const proventosFuturosIgnorados = [{ ticker: "GGRC11", dataPagamento: "2026-07-20" }];
 
 const referenciaInter = {
   data: "2026-06-23",
@@ -66,27 +69,27 @@ const referenciaInter = {
     CPTS11: 80,
     GGRC11: 45,
     BBAS3: 5,
-    ALZR11: 20
+    ALZR11: 20,
   },
   custos: {
-    CPTS11: 630.40,
+    CPTS11: 630.4,
     GGRC11: 456.75,
     BBAS3: 96.95,
-    ALZR11: 201.80
+    ALZR11: 201.8,
   },
   cotacoes: {
     CPTS11: 7.27,
     GGRC11: 9.88,
-    BBAS3: 19.60,
-    ALZR11: 9.75
+    BBAS3: 19.6,
+    ALZR11: 9.75,
   },
   rendaFixa: {
     CDBINTERDI: {
       principal: 502.72,
       valorLiquido: 503.95,
-      rendimentoLiquido: 1.23
-    }
-  }
+      rendimentoLiquido: 1.23,
+    },
+  },
 };
 
 const inputTicker = document.getElementById("input-ticker");
@@ -189,13 +192,13 @@ const filtrosCompras = {
   data: document.getElementById("filtro-data"),
   precoMin: document.getElementById("filtro-preco-min"),
   precoMax: document.getElementById("filtro-preco-max"),
-  comprador: document.getElementById("filtro-comprador")
+  comprador: document.getElementById("filtro-comprador"),
 };
 const btnLimparFiltros = document.getElementById("limpar-filtros");
 
 const dinheiro = new Intl.NumberFormat("pt-BR", {
   style: "currency",
-  currency: "BRL"
+  currency: "BRL",
 });
 
 function atualizarAbaGrafico(aba) {
@@ -222,7 +225,6 @@ function atualizarTelaPrincipal(tela) {
   purchasePanel.hidden = !comprasAtivo;
   purchaseNav.hidden = !comprasAtivo;
   mainLayout.classList.toggle("is-home", !comprasAtivo);
-
 }
 
 function atualizarTipoCompra(tipo) {
@@ -276,10 +278,7 @@ async function carregarCarteira() {
   }
 
   connectionStatus.textContent = "Carregando...";
-  const { data, error } = await db
-    .from("compras")
-    .select("*")
-    .order("data_compra", { ascending: false });
+  const { data, error } = await db.from("compras").select("*").order("data_compra", { ascending: false });
 
   if (error) {
     console.error("Erro ao buscar dados:", error);
@@ -293,7 +292,7 @@ async function carregarCarteira() {
     precoCompra: Number(item.preco_compra),
     quantidade: Number(item.quantidade),
     data: item.data_compra,
-    comprador: item.comprador
+    comprador: item.comprador,
   }));
 
   connectionStatus.textContent = "Conectado";
@@ -387,7 +386,7 @@ async function salvarCompra(event) {
     preco_compra: precoCompra,
     quantidade,
     data_compra: document.getElementById("input-data").value,
-    comprador
+    comprador,
   };
 
   btnSubmit.disabled = true;
@@ -397,7 +396,7 @@ async function salvarCompra(event) {
     action: compraEmEdicaoId ? "update" : "insert",
     id: compraEmEdicaoId,
     compra: dadosCompra,
-    senha: inputSenha.value
+    senha: inputSenha.value,
   });
 
   if (error) {
@@ -421,8 +420,8 @@ async function salvarCompra(event) {
   formCompra.reset();
   sairModoEdicao();
   definirDataPadrao();
-atualizarTipoCompra("renda-fixa");
-atualizarCampoSenha();
+  atualizarTipoCompra("renda-fixa");
+  atualizarCampoSenha();
   spanPrecoAtual.textContent = "Aguardando...";
   btnSubmit.disabled = false;
   await carregarCarteira();
@@ -464,7 +463,7 @@ function aplicarCompraNaTela(item) {
     precoCompra: Number(item.preco_compra),
     quantidade: Number(item.quantidade),
     data: item.data_compra,
-    comprador: item.comprador
+    comprador: item.comprador,
   };
   const index = carteira.findIndex((registro) => registro.id === compra.id);
 
@@ -494,7 +493,7 @@ async function excluirCompra(id) {
   const { error } = await enviarCompra({
     action: "delete",
     id,
-    senha
+    senha,
   });
 
   if (error) {
@@ -530,13 +529,11 @@ function atualizarDashboard() {
 }
 
 function calcularTotalInvestido(itens = obterCarteiraComAjustes()) {
-  return obterGruposPorTicker(itens)
-    .reduce((soma, item) => soma + obterCustoInvestidoDoGrupo(item), 0);
+  return obterGruposPorTicker(itens).reduce((soma, item) => soma + obterCustoInvestidoDoGrupo(item), 0);
 }
 
 function calcularValorAtualCarteira(itens = obterCarteiraComAjustes()) {
-  return obterGruposPorTicker(itens)
-    .reduce((soma, item) => soma + obterValorAtualDoGrupo(item), 0);
+  return obterGruposPorTicker(itens).reduce((soma, item) => soma + obterValorAtualDoGrupo(item), 0);
 }
 
 function obterGruposPorTicker(itens = obterCarteiraComAjustes()) {
@@ -551,13 +548,14 @@ function obterGruposPorTicker(itens = obterCarteiraComAjustes()) {
         quantidade: 0,
         segmento: obterSegmento(ticker),
         compradores: {},
-        aplicacoes: []
+        aplicacoes: [],
       };
     }
 
     resultado[ticker].totalInvestido += totalInvestido;
     resultado[ticker].quantidade += item.quantidade;
-    resultado[ticker].compradores[item.comprador] = (resultado[ticker].compradores[item.comprador] || 0) + item.quantidade;
+    resultado[ticker].compradores[item.comprador] =
+      (resultado[ticker].compradores[item.comprador] || 0) + item.quantidade;
     resultado[ticker].aplicacoes.push(item);
     return resultado;
   }, {});
@@ -646,7 +644,10 @@ function renderizarTabela() {
       <td>${formatarData(item.data)}</td>
       <td>${escaparHtml(item.comprador)}</td>
       <td>
-        ${item.virtual ? '<span class="virtual-row">Ajuste</span>' : `
+        ${
+          item.virtual
+            ? '<span class="virtual-row">Ajuste</span>'
+            : `
         <button class="edit-button" type="button" data-action="edit" data-id="${item.id}" aria-label="Editar ${escaparHtml(item.ticker)}" title="Editar">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 20h9"/>
@@ -662,7 +663,8 @@ function renderizarTabela() {
             <path d="M14 11v5"/>
           </svg>
         </button>
-        `}
+        `
+        }
       </td>
     `;
 
@@ -741,32 +743,35 @@ function renderizarGraficos() {
   const totalCompradores = dadosCompradores.reduce((soma, item) => soma + item.total, 0);
   const percentualFiis = totalCarteira ? (totalFiis / totalCarteira) * 100 : 0;
   const percentualAcoes = totalCarteira ? (totalAcoesCarteira / totalCarteira) * 100 : 0;
-  const dadosParticipacao = abaGrafico === "fiis"
-    ? dadosFiis
-    : abaGrafico === "acoes"
-      ? dadosAcoes
-    : abaGrafico === "compradores"
-      ? dadosCompradores
-      : dadosPorClasse;
+  const dadosParticipacao =
+    abaGrafico === "fiis"
+      ? dadosFiis
+      : abaGrafico === "acoes"
+        ? dadosAcoes
+        : abaGrafico === "compradores"
+          ? dadosCompradores
+          : dadosPorClasse;
 
   generalChartTotal.textContent = `${dinheiro.format(totalCarteira)} no total`;
   fiiChartTotal.textContent = `${percentualFiis.toFixed(1)}% da carteira em FIIs`;
   acoesChartTotal.textContent = `${percentualAcoes.toFixed(1)}% da carteira em acoes`;
   compradoresChartTotal.textContent = `${dinheiro.format(totalCompradores)} em compras`;
-  participacaoTitle.textContent = abaGrafico === "fiis"
-    ? "Maior participacao em FIIs"
-    : abaGrafico === "acoes"
-      ? "Maior participacao em acoes"
-    : abaGrafico === "compradores"
-      ? "Maior participacao por comprador"
-      : "Maior participacao na carteira";
-  participacaoSubtitle.textContent = abaGrafico === "fiis"
-    ? "Percentual por FII"
-    : abaGrafico === "acoes"
-      ? "Percentual por acao"
-    : abaGrafico === "compradores"
-      ? "Percentual por comprador"
-      : "Percentual por classe";
+  participacaoTitle.textContent =
+    abaGrafico === "fiis"
+      ? "Maior participacao em FIIs"
+      : abaGrafico === "acoes"
+        ? "Maior participacao em acoes"
+        : abaGrafico === "compradores"
+          ? "Maior participacao por comprador"
+          : "Maior participacao na carteira";
+  participacaoSubtitle.textContent =
+    abaGrafico === "fiis"
+      ? "Percentual por FII"
+      : abaGrafico === "acoes"
+        ? "Percentual por acao"
+        : abaGrafico === "compradores"
+          ? "Percentual por comprador"
+          : "Percentual por classe";
 
   renderizarGraficoPizza(dadosPorClasse);
   renderizarGraficoPizzaSecundario(dadosFiis, ctxFiis, canvasFiis, legendaFiis);
@@ -775,13 +780,13 @@ function renderizarGraficos() {
     vazio: "Sem acoes para exibir",
     dicaVazia: "Cadastre acoes para montar este grafico.",
     singular: "acao",
-    plural: "acoes"
+    plural: "acoes",
   });
   renderizarGraficoPizzaSecundario(dadosAcoes, ctxAcoesTab, canvasAcoesTab, legendaAcoesTab, {
     vazio: "Sem acoes para exibir",
     dicaVazia: "Cadastre acoes para montar este grafico.",
     singular: "acao",
-    plural: "acoes"
+    plural: "acoes",
   });
   renderizarGraficoPizzaSecundario(dadosCompradores, ctxCompradores, canvasCompradores, legendaCompradores, {
     vazio: "Sem compras para exibir",
@@ -791,7 +796,7 @@ function renderizarGraficos() {
     centroX: 130,
     centroY: 110,
     raio: 74,
-    raioInterno: 34
+    raioInterno: 34,
   });
   renderizarGraficoBarras(dadosParticipacao, barrasCarteira);
   renderizarGraficoBarras(dadosFiis, barrasFiis);
@@ -811,7 +816,7 @@ function obterResumoPorClasse() {
         totalInvestido: 0,
         quantidade: 0,
         segmento: ticker,
-        compradores: {}
+        compradores: {},
       };
     }
 
@@ -827,7 +832,7 @@ function obterResumoPorClasse() {
   return Object.values(mapa)
     .map((item) => ({
       ...item,
-      percentual: totalCarteira ? (item.total / totalCarteira) * 100 : 0
+      percentual: totalCarteira ? (item.total / totalCarteira) * 100 : 0,
     }))
     .sort((a, b) => b.total - a.total);
 }
@@ -838,7 +843,7 @@ function obterResumoDeFiis() {
 
   return fiis.map((item) => ({
     ...item,
-    percentual: totalFiis ? (item.total / totalFiis) * 100 : 0
+    percentual: totalFiis ? (item.total / totalFiis) * 100 : 0,
   }));
 }
 
@@ -848,7 +853,7 @@ function obterResumoDeAcoes() {
 
   return acoes.map((item) => ({
     ...item,
-    percentual: totalAcoes ? (item.total / totalAcoes) * 100 : 0
+    percentual: totalAcoes ? (item.total / totalAcoes) * 100 : 0,
   }));
 }
 
@@ -865,7 +870,7 @@ function obterResumoPorComprador() {
         total: 0,
         quantidade: 0,
         segmento: "Compras",
-        compradores: {}
+        compradores: {},
       };
     }
 
@@ -878,7 +883,7 @@ function obterResumoPorComprador() {
   return Object.values(mapa)
     .map((item) => ({
       ...item,
-      percentual: totalCarteira ? (item.total / totalCarteira) * 100 : 0
+      percentual: totalCarteira ? (item.total / totalCarteira) * 100 : 0,
     }))
     .sort((a, b) => b.total - a.total);
 }
@@ -897,7 +902,7 @@ function obterResumoPorTicker() {
         total,
         totalInvestido: obterCustoInvestidoDoGrupo(item),
         segmento: obterSegmento(item.ticker),
-        percentual: totalCarteira ? (total / totalCarteira) * 100 : 0
+        percentual: totalCarteira ? (total / totalCarteira) * 100 : 0,
       };
     })
     .sort((a, b) => b.total - a.total);
@@ -912,10 +917,7 @@ async function atualizarMercadoCarteira() {
   btnRefresh.disabled = true;
 
   try {
-    await Promise.all([
-      atualizarCotacoesCarteira(),
-      atualizarCdi()
-    ]);
+    await Promise.all([atualizarCotacoesCarteira(), atualizarCdi()]);
     atualizarDashboard();
   } finally {
     mercadoAtualizando = false;
@@ -954,7 +956,7 @@ async function atualizarCotacoesCarteira() {
     tickers.map(async (ticker) => {
       const cotacao = await buscarCotacaoSilenciosa(ticker);
       return [ticker, cotacao];
-    })
+    }),
   );
 
   cotacoesAtuais = resultados.reduce((mapa, [ticker, cotacao]) => {
@@ -965,7 +967,7 @@ async function atualizarCotacoesCarteira() {
   const falhas = resultados.filter(([, cotacao]) => !cotacao).length;
   const horario = new Intl.DateTimeFormat("pt-BR", {
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   }).format(new Date());
 
   assetLiveStatus.textContent = falhas
@@ -987,7 +989,7 @@ async function buscarCotacaoSilenciosa(ticker) {
     return {
       preco: Number(resultado.regularMarketPrice || 0),
       segmento: obterSegmentoDaApi(ticker, resultado),
-      nome: resultado.longName || resultado.shortName || ticker
+      nome: resultado.longName || resultado.shortName || ticker,
     };
   } catch (error) {
     console.error(`Erro ao buscar cotacao de ${ticker}:`, error);
@@ -1017,7 +1019,7 @@ async function atualizarProventos() {
       symbols: fiis.slice(0, 20).join(","),
       startDate: formatarDataApi(inicio),
       endDate: formatarDataApi(fim),
-      sortOrder: "asc"
+      sortOrder: "asc",
     });
     const headers = BRAPI_TOKEN ? { Authorization: `Bearer ${BRAPI_TOKEN}` } : {};
     const resposta = await fetch(`https://brapi.dev/api/v2/fii/dividends?${params.toString()}`, { headers });
@@ -1065,8 +1067,8 @@ async function atualizarCdi() {
 }
 
 function calcularProventosRecebidos(dividendos, hoje) {
-  return dividendos
-    .reduce((resultado, dividendo) => {
+  return dividendos.reduce(
+    (resultado, dividendo) => {
       const ticker = String(dividendo.symbol || "").toUpperCase();
       const dataBase = criarDataBrapi(dividendo.lastDatePrior);
       const dataPagamento = criarDataBrapi(dividendo.paymentDate);
@@ -1077,9 +1079,8 @@ function calcularProventosRecebidos(dividendos, hoje) {
       }
 
       const dataCorte = dataBase || hoje;
-      const quantidadeElegivel = dataPagamento <= hoje
-        ? obterQuantidadeAteData(ticker, dataCorte)
-        : obterQuantidadeAtual(ticker);
+      const quantidadeElegivel =
+        dataPagamento <= hoje ? obterQuantidadeAteData(ticker, dataCorte) : obterQuantidadeAtual(ticker);
 
       if (quantidadeElegivel <= 0) {
         return resultado;
@@ -1093,7 +1094,7 @@ function calcularProventosRecebidos(dividendos, hoje) {
         dataBase,
         dataPagamento,
         label: dividendo.label || "Provento",
-        fonte: "brapi"
+        fonte: "brapi",
       };
 
       if (dataPagamento <= hoje) {
@@ -1103,7 +1104,9 @@ function calcularProventosRecebidos(dividendos, hoje) {
       }
 
       return resultado;
-    }, { recebidos: [], futuros: [] });
+    },
+    { recebidos: [], futuros: [] },
+  );
 }
 
 function obterProventosManuaisElegiveis(hoje) {
@@ -1127,12 +1130,11 @@ function normalizarProventoManual(item) {
     return null;
   }
 
-  const quantidade = Number.isFinite(valorPorCota) && valorPorCota > 0
-    ? obterQuantidadeAteData(ticker, dataPagamento) || obterQuantidadeAtual(ticker)
-    : obterQuantidadeAtual(ticker);
-  const total = Number.isFinite(totalInformado) && totalInformado > 0
-    ? totalInformado
-    : quantidade * valorPorCota;
+  const quantidade =
+    Number.isFinite(valorPorCota) && valorPorCota > 0
+      ? obterQuantidadeAteData(ticker, dataPagamento) || obterQuantidadeAtual(ticker)
+      : obterQuantidadeAtual(ticker);
+  const total = Number.isFinite(totalInformado) && totalInformado > 0 ? totalInformado : quantidade * valorPorCota;
 
   if (!Number.isFinite(total) || total <= 0) {
     return null;
@@ -1147,23 +1149,24 @@ function normalizarProventoManual(item) {
     valorPorCota: Number.isFinite(valorPorCota) && valorPorCota > 0 ? valorPorCota : null,
     total,
     label: item.label || "Provento recebido",
-    fonte: item.fonte || "manual"
+    fonte: item.fonte || "manual",
   };
 }
 
 function filtrarProventosFuturosCorrigidos(futuros) {
-  return futuros.filter((item) => !proventosFuturosIgnorados.some((ignorado) => (
-    ignorado.ticker === item.ticker
-    && ignorado.dataPagamento === formatarDataApi(item.dataPagamento)
-  )));
+  return futuros.filter(
+    (item) =>
+      !proventosFuturosIgnorados.some(
+        (ignorado) => ignorado.ticker === item.ticker && ignorado.dataPagamento === formatarDataApi(item.dataPagamento),
+      ),
+  );
 }
 
 function combinarProventosRecebidos(manuais, calculados) {
   const chavesManuais = new Set(manuais.map((item) => chaveProvento(item)));
   const calculadosSemDuplicar = calculados.filter((item) => !chavesManuais.has(chaveProvento(item)));
 
-  return [...manuais, ...calculadosSemDuplicar]
-    .sort((a, b) => a.dataPagamento - b.dataPagamento);
+  return [...manuais, ...calculadosSemDuplicar].sort((a, b) => a.dataPagamento - b.dataPagamento);
 }
 
 function chaveProvento(item) {
@@ -1177,9 +1180,7 @@ function obterQuantidadeAteData(ticker, data) {
 }
 
 function obterQuantidadeAtual(ticker) {
-  return carteira
-    .filter((item) => item.ticker === ticker)
-    .reduce((soma, item) => soma + item.quantidade, 0);
+  return carteira.filter((item) => item.ticker === ticker).reduce((soma, item) => soma + item.quantidade, 0);
 }
 
 function renderizarProventos() {
@@ -1215,22 +1216,23 @@ function renderizarProventos() {
   }
 
   if (!proventosFuturos.length) {
-    proventosFuturosLista.innerHTML = '<p class="empty-chart">Sem pagamentos futuros anunciados pela fonte consultada.</p>';
+    proventosFuturosLista.innerHTML =
+      '<p class="empty-chart">Sem pagamentos futuros anunciados pela fonte consultada.</p>';
   } else {
     proventosFuturos
       .slice()
       .sort((a, b) => a.dataPagamento - b.dataPagamento)
       .forEach((item) => {
-      const row = document.createElement("div");
-      row.className = "income-row";
-      row.innerHTML = `
+        const row = document.createElement("div");
+        row.className = "income-row";
+        row.innerHTML = `
         <div>
           <strong>${escaparHtml(item.ticker)} - ${formatarDataObjeto(item.dataPagamento)}</strong>
           <span>${item.quantidade} cotas x ${dinheiro.format(item.valorPorCota)}${item.dataBase ? ` - data-base ${formatarDataObjeto(item.dataBase)}` : ""}</span>
         </div>
         <strong>${dinheiro.format(item.total)}</strong>
       `;
-      proventosFuturosLista.appendChild(row);
+        proventosFuturosLista.appendChild(row);
       });
   }
 
@@ -1254,7 +1256,8 @@ function renderizarProventosEstimados() {
   proventosEstimadosStatus.textContent = `Total estimado: ${dinheiro.format(totalEstimado)}`;
 
   if (!estimativas.length) {
-    proventosEstimadosLista.innerHTML = '<p class="empty-chart">Sem historico suficiente para estimar os proximos proventos.</p>';
+    proventosEstimadosLista.innerHTML =
+      '<p class="empty-chart">Sem historico suficiente para estimar os proximos proventos.</p>';
     return;
   }
 
@@ -1301,7 +1304,7 @@ function calcularProventosEstimados() {
         quantidade: obterQuantidadeAtual(ticker),
         ultimoTotal: ultimo.total,
         total: ultimo.total,
-        fonte: "estimado"
+        fonte: "estimado",
       };
     })
     .filter(Boolean)
@@ -1387,7 +1390,7 @@ async function salvarProventoManual(event) {
     total,
     comprador,
     fonte: "manual-usuario",
-    label: "Provento adicionado manualmente"
+    label: "Provento adicionado manualmente",
   };
 
   botaoSalvar.disabled = true;
@@ -1396,12 +1399,14 @@ async function salvarProventoManual(event) {
   const { data, error } = await enviarProventoManual({
     action: "insert",
     provento: converterProventoParaBanco(provento),
-    senha
+    senha,
   });
 
   if (error) {
     console.error(error);
-    alert(`Nao foi possivel sincronizar agora: ${error.message}\nO provento ficou salvo neste navegador. Use Sincronizar depois.`);
+    alert(
+      `Nao foi possivel sincronizar agora: ${error.message}\nO provento ficou salvo neste navegador. Use Sincronizar depois.`,
+    );
     proventosManuaisUsuario.push({ ...provento, pendenteSync: true });
   } else {
     proventosManuaisUsuario.push(normalizarProventoDoBanco(data) || { ...provento, sincronizado: true });
@@ -1487,7 +1492,7 @@ function salvarMetaCarteira() {
 
   const meta = {
     valor: valorMeta,
-    mes: inputGoalMonth.value
+    mes: inputGoalMonth.value,
   };
 
   try {
@@ -1516,9 +1521,10 @@ function renderizarMetaCarteira(saldoComProventos) {
   const aporteMensal = mesesRestantes ? faltante / mesesRestantes : 0;
 
   goalProgress.textContent = `${progresso.toFixed(1)}%`;
-  goalGap.innerHTML = faltante > 0
-    ? `<span class="goal-missing">${dinheiro.format(faltante)} faltando${prazo}</span>${mesesRestantes ? `<span>${dinheiro.format(aporteMensal)} por mes para chegar na meta</span>` : ""}`
-    : `<span class="goal-hit">Meta batida${prazo}</span>`;
+  goalGap.innerHTML =
+    faltante > 0
+      ? `<span class="goal-missing">${dinheiro.format(faltante)} faltando${prazo}</span>${mesesRestantes ? `<span>${dinheiro.format(aporteMensal)} por mes para chegar na meta</span>` : ""}`
+      : `<span class="goal-hit">Meta batida${prazo}</span>`;
 }
 
 function formatarMesMeta(valor) {
@@ -1602,7 +1608,7 @@ async function sincronizarProventosManuais() {
       action: "upsert_many",
       proventos: pendentes.map((item) => converterProventoParaBanco({ ...item, comprador })),
       senha,
-      comprador
+      comprador,
     });
 
     if (error) {
@@ -1612,7 +1618,9 @@ async function sincronizarProventosManuais() {
 
     await carregarProventosManuaisUsuario();
     await atualizarProventos();
-    alert(`Sincronizacao concluida. ${pendentes.length} provento(s) enviado(s) e ${proventosManuaisUsuario.length} provento(s) manual(is) carregado(s).`);
+    alert(
+      `Sincronizacao concluida. ${pendentes.length} provento(s) enviado(s) e ${proventosManuaisUsuario.length} provento(s) manual(is) carregado(s).`,
+    );
   } catch (error) {
     console.error("Erro ao sincronizar proventos manuais:", error);
     alert("Nao foi possivel concluir a sincronizacao. Confira a tabela no Supabase e tente novamente.");
@@ -1623,11 +1631,7 @@ async function sincronizarProventosManuais() {
 }
 
 function obterCompradorParaSincronizar(pendentes) {
-  const compradores = [...new Set(
-    pendentes
-      .map((item) => normalizarComprador(item.comprador))
-      .filter(Boolean)
-  )];
+  const compradores = [...new Set(pendentes.map((item) => normalizarComprador(item.comprador)).filter(Boolean))];
 
   if (compradores.length === 1) {
     return compradores[0];
@@ -1650,7 +1654,7 @@ function mesclarProventosManuais(locais, remotos) {
       ...anterior,
       ...normalizado,
       sincronizado: Boolean(normalizado.sincronizado),
-      pendenteSync: Boolean(normalizado.pendenteSync && !normalizado.sincronizado)
+      pendenteSync: Boolean(normalizado.pendenteSync && !normalizado.sincronizado),
     });
   });
 
@@ -1671,7 +1675,7 @@ function normalizarProventoManualArmazenado(item) {
     fonte: item.fonte || "manual-usuario",
     label: item.label || "Provento adicionado manualmente",
     sincronizado: Boolean(item.sincronizado),
-    pendenteSync: Boolean(item.pendenteSync)
+    pendenteSync: Boolean(item.pendenteSync),
   };
 }
 
@@ -1687,7 +1691,7 @@ function normalizarProventoDoBanco(item) {
     fonte: "manual-usuario",
     label: "Provento adicionado manualmente",
     sincronizado: true,
-    pendenteSync: false
+    pendenteSync: false,
   });
 }
 
@@ -1697,7 +1701,7 @@ function converterProventoParaBanco(item) {
     ticker: String(item.ticker || "").toUpperCase(),
     data_pagamento: item.dataPagamento,
     total: Number(item.total),
-    comprador: normalizarComprador(item.comprador)
+    comprador: normalizarComprador(item.comprador),
   };
 }
 
@@ -1720,34 +1724,39 @@ function calcularCdbInter(item) {
   const hoje = new Date();
   const cdiDiario = Number.isFinite(cdiDiarioAtual) ? cdiDiarioAtual : 0;
   const taxaDiaria = (cdiDiario / 100) * cdbInterConfig.percentualCdi;
-  const totais = aplicacoes.reduce((resultado, aplicacao) => {
-    const dataCompra = new Date(`${aplicacao.data}T00:00:00`);
-    const principal = aplicacao.precoCompra * aplicacao.quantidade;
-    const diasCorridos = Number.isNaN(dataCompra.getTime()) ? 0 : Math.max(0, Math.floor((hoje - dataCompra) / 86400000));
-    const diasUteis = Number.isNaN(dataCompra.getTime()) ? 0 : contarDiasUteis(dataCompra, hoje);
-    const rendimentoBruto = principal * (Math.pow(1 + taxaDiaria, diasUteis) - 1);
-    const iof = rendimentoBruto * obterAliquotaIof(diasCorridos);
-    const baseIr = Math.max(0, rendimentoBruto - iof);
-    const ir = baseIr * obterAliquotaIr(diasCorridos);
-    const rendimentoLiquido = Math.max(0, rendimentoBruto - iof - ir);
+  const totais = aplicacoes.reduce(
+    (resultado, aplicacao) => {
+      const dataCompra = new Date(`${aplicacao.data}T00:00:00`);
+      const principal = aplicacao.precoCompra * aplicacao.quantidade;
+      const diasCorridos = Number.isNaN(dataCompra.getTime())
+        ? 0
+        : Math.max(0, Math.floor((hoje - dataCompra) / 86400000));
+      const diasUteis = Number.isNaN(dataCompra.getTime()) ? 0 : contarDiasUteis(dataCompra, hoje);
+      const rendimentoBruto = principal * (Math.pow(1 + taxaDiaria, diasUteis) - 1);
+      const iof = rendimentoBruto * obterAliquotaIof(diasCorridos);
+      const baseIr = Math.max(0, rendimentoBruto - iof);
+      const ir = baseIr * obterAliquotaIr(diasCorridos);
+      const rendimentoLiquido = Math.max(0, rendimentoBruto - iof - ir);
 
-    resultado.principal += principal;
-    resultado.diasCorridos = Math.max(resultado.diasCorridos, diasCorridos);
-    resultado.diasUteis += diasUteis;
-    resultado.rendimentoBruto += rendimentoBruto;
-    resultado.iof += iof;
-    resultado.ir += ir;
-    resultado.rendimentoLiquido += rendimentoLiquido;
-    return resultado;
-  }, {
-    principal: 0,
-    diasCorridos: 0,
-    diasUteis: 0,
-    rendimentoBruto: 0,
-    iof: 0,
-    ir: 0,
-    rendimentoLiquido: 0
-  });
+      resultado.principal += principal;
+      resultado.diasCorridos = Math.max(resultado.diasCorridos, diasCorridos);
+      resultado.diasUteis += diasUteis;
+      resultado.rendimentoBruto += rendimentoBruto;
+      resultado.iof += iof;
+      resultado.ir += ir;
+      resultado.rendimentoLiquido += rendimentoLiquido;
+      return resultado;
+    },
+    {
+      principal: 0,
+      diasCorridos: 0,
+      diasUteis: 0,
+      rendimentoBruto: 0,
+      iof: 0,
+      ir: 0,
+      rendimentoLiquido: 0,
+    },
+  );
   const referencia = item.aplicacoes?.length > 1 ? referenciaInter.rendaFixa[item.ticker] : null;
 
   if (referencia && Number.isFinite(referencia.valorLiquido)) {
@@ -1765,7 +1774,7 @@ function calcularCdbInter(item) {
       ir: 0,
       rendimentoLiquido,
       valorBruto: principal + rendimentoLiquido,
-      valorLiquido: referencia.valorLiquido
+      valorLiquido: referencia.valorLiquido,
     };
   }
 
@@ -1773,7 +1782,7 @@ function calcularCdbInter(item) {
     ...totais,
     cdiDiario,
     valorBruto: totais.principal + totais.rendimentoBruto,
-    valorLiquido: totais.principal + totais.rendimentoLiquido
+    valorLiquido: totais.principal + totais.rendimentoLiquido,
   };
 }
 
@@ -1796,9 +1805,8 @@ function contarDiasUteis(inicio, fim) {
 
 function obterAliquotaIof(diasCorridos) {
   const tabela = [
-    0.96, 0.93, 0.90, 0.86, 0.83, 0.80, 0.76, 0.73, 0.70, 0.66,
-    0.63, 0.60, 0.56, 0.53, 0.50, 0.46, 0.43, 0.40, 0.36, 0.33,
-    0.30, 0.26, 0.23, 0.20, 0.16, 0.13, 0.10, 0.06, 0.03
+    0.96, 0.93, 0.9, 0.86, 0.83, 0.8, 0.76, 0.73, 0.7, 0.66, 0.63, 0.6, 0.56, 0.53, 0.5, 0.46, 0.43, 0.4, 0.36, 0.33,
+    0.3, 0.26, 0.23, 0.2, 0.16, 0.13, 0.1, 0.06, 0.03,
   ];
 
   if (diasCorridos <= 0) return 0.96;
@@ -1808,7 +1816,7 @@ function obterAliquotaIof(diasCorridos) {
 
 function obterAliquotaIr(diasCorridos) {
   if (diasCorridos <= 180) return 0.225;
-  if (diasCorridos <= 360) return 0.20;
+  if (diasCorridos <= 360) return 0.2;
   if (diasCorridos <= 720) return 0.175;
   return 0.15;
 }
@@ -1847,12 +1855,27 @@ function criarCardAtivoAoVivo(item) {
   const cdb = rendaFixa ? calcularCdbInter(item) : null;
   const precoMercado = rendaFixa ? cdb.valorLiquido : obterPrecoAtual(item.ticker);
   const temMercado = rendaFixa || (Number.isFinite(precoMercado) && precoMercado > 0);
-  const valorMercado = rendaFixa ? cdb.valorLiquido : temMercado ? arredondarMoeda(precoMercado * item.quantidade) : null;
-  const ganho = rendaFixa ? cdb.rendimentoLiquido : temMercado ? arredondarMoeda(valorMercado - totalInvestidoItem) : null;
-  const ganhoPercentual = rendaFixa ? (totalInvestidoItem ? (ganho / totalInvestidoItem) * 100 : 0) : temMercado && totalInvestidoItem ? (ganho / totalInvestidoItem) * 100 : null;
+  const valorMercado = rendaFixa
+    ? cdb.valorLiquido
+    : temMercado
+      ? arredondarMoeda(precoMercado * item.quantidade)
+      : null;
+  const ganho = rendaFixa
+    ? cdb.rendimentoLiquido
+    : temMercado
+      ? arredondarMoeda(valorMercado - totalInvestidoItem)
+      : null;
+  const ganhoPercentual = rendaFixa
+    ? totalInvestidoItem
+      ? (ganho / totalInvestidoItem) * 100
+      : 0
+    : temMercado && totalInvestidoItem
+      ? (ganho / totalInvestidoItem) * 100
+      : null;
   const variacaoClasse = ganho === null ? "" : ganho >= 0 ? "positive" : "negative";
   const sinal = ganho !== null && ganho > 0 ? "+" : "";
-  const detalhesCdb = rendaFixa ? `
+  const detalhesCdb = rendaFixa
+    ? `
         <div>
           <span>IR estimado</span>
           <strong>${dinheiro.format(cdb.ir)}</strong>
@@ -1869,7 +1892,8 @@ function criarCardAtivoAoVivo(item) {
           <span>Dias uteis</span>
           <strong>${cdb.diasUteis}</strong>
         </div>
-      ` : "";
+      `
+    : "";
   const card = document.createElement("article");
 
   card.className = `asset-live-card${rendaFixa ? " is-cdb" : ""}`;
@@ -1896,12 +1920,16 @@ function criarCardAtivoAoVivo(item) {
           <span>${rendaFixa ? "Valor bruto" : "Preco medio"}</span>
           <strong>${rendaFixa ? dinheiro.format(cdb.valorBruto) : dinheiro.format(precoMedio)}</strong>
         </div>
-        ${rendaFixa ? "" : `
+        ${
+          rendaFixa
+            ? ""
+            : `
         <div>
           <span>Custo medio</span>
           <strong>${dinheiro.format(totalInvestidoItem)}</strong>
         </div>
-        `}
+        `
+        }
         <div>
           <span>${rendaFixa ? "Valor liquido atual" : "Preco de mercado atual"}</span>
           <strong>${temMercado ? dinheiro.format(precoMercado) : "Aguardando"}</strong>
@@ -1918,7 +1946,7 @@ function renderizarGraficoPizza(dados) {
     vazio: "Sem dados para exibir",
     dicaVazia: "Cadastre compras para montar os graficos.",
     singular: "ativo",
-    plural: "ativos"
+    plural: "ativos",
   });
 
   fatiasPizza = fatiasGraficos.get(canvas) || [];
@@ -1934,7 +1962,7 @@ function renderizarGraficoPizzaSecundario(dados, contexto, canvasAlvo, legenda, 
     centroY: 140,
     raio: 96,
     raioInterno: 46,
-    ...opcoes
+    ...opcoes,
   });
 }
 
@@ -1948,7 +1976,7 @@ function renderizarDonut(dados, contexto, canvasAlvo, legenda, opcoes = {}) {
     centroY: 140,
     raio: 96,
     raioInterno: 46,
-    ...opcoes
+    ...opcoes,
   };
   const fatias = [];
 
@@ -1988,7 +2016,7 @@ function renderizarDonut(dados, contexto, canvasAlvo, legenda, opcoes = {}) {
       raio,
       raioInterno: configGrafico.raioInterno,
       cor,
-      legenda: itemLegenda
+      legenda: itemLegenda,
     });
     anguloAtual = fim;
   });
@@ -2055,7 +2083,11 @@ function desenharDonut(contexto, canvasAlvo, fatias, configGrafico, progresso) {
   contexto.fillText(`${fatias.length}`, configGrafico.centroX, configGrafico.centroY - 2);
   contexto.fillStyle = "#9aa6b5";
   contexto.font = "13px Arial";
-  contexto.fillText(fatias.length === 1 ? configGrafico.singular : configGrafico.plural, configGrafico.centroX, configGrafico.centroY + 18);
+  contexto.fillText(
+    fatias.length === 1 ? configGrafico.singular : configGrafico.plural,
+    configGrafico.centroX,
+    configGrafico.centroY + 18,
+  );
   contexto.textAlign = "left";
 }
 function renderizarGraficoBarras(dados, container = barrasCarteira) {
@@ -2092,10 +2124,9 @@ function renderizarEvolucaoPatrimonio() {
   const margem = { top: 30, right: 88, bottom: 58, left: 72 };
   const areaLargura = largura - margem.left - margem.right;
   const areaAltura = altura - margem.top - margem.bottom;
-  const topoMensal = arredondarTopoEscala(Math.max(
-    metaMensalPatrimonio,
-    ...dados.map((item) => item.aporteMensal + item.ganhoCapitalMensal)
-  ));
+  const topoMensal = arredondarTopoEscala(
+    Math.max(metaMensalPatrimonio, ...dados.map((item) => item.aporteMensal + item.ganhoCapitalMensal)),
+  );
   const topoAcumulado = arredondarTopoEscala(Math.max(1000, ...dados.map((item) => item.total)));
   const yBase = margem.top + areaAltura;
   const linhas = 5;
@@ -2149,16 +2180,24 @@ function renderizarEvolucaoPatrimonio() {
 
   dados.forEach((item, index) => {
     const x = margem.left + passo * index + (passo - larguraBarra) / 2;
-    const aporteAltura = (item.aporteMensal / topoMensal) * areaAltura;
+    const aporteBase = Math.min(item.aporteMensal, metaMensalPatrimonio);
+    const aporteAcimaMeta = Math.max(0, item.aporteMensal - metaMensalPatrimonio);
+    const aporteBaseAltura = (aporteBase / topoMensal) * areaAltura;
+    const aporteAcimaMetaAltura = (aporteAcimaMeta / topoMensal) * areaAltura;
     const ganhoCapitalAltura = (item.ganhoCapitalMensal / topoMensal) * areaAltura;
-    const yAporte = yBase - aporteAltura;
-    const yGanhoCapital = yAporte - ganhoCapitalAltura;
+    const yAporteBase = yBase - aporteBaseAltura;
+    const yAporteAcimaMeta = yAporteBase - aporteAcimaMetaAltura;
+    const yGanhoCapital = yAporteAcimaMeta - ganhoCapitalAltura;
     const xCentro = x + larguraBarra / 2;
     const yPatrimonio = valorParaYEscala(item.total, margem, areaAltura, topoAcumulado);
     const segmentos = [];
 
-    if (aporteAltura > 0) {
-      segmentos.push({ x, y: yAporte, largura: larguraBarra, altura: aporteAltura });
+    if (aporteBaseAltura > 0) {
+      segmentos.push({ x, y: yAporteBase, largura: larguraBarra, altura: aporteBaseAltura });
+    }
+
+    if (aporteAcimaMetaAltura > 0) {
+      segmentos.push({ x, y: yAporteAcimaMeta, largura: larguraBarra, altura: aporteAcimaMetaAltura });
     }
 
     if (ganhoCapitalAltura > 0) {
@@ -2167,24 +2206,45 @@ function renderizarEvolucaoPatrimonio() {
 
     barrasPatrimonio.push({
       ...item,
+      aporteAcimaMeta,
       xCentro,
-      yTopo: Math.min(yGanhoCapital, yAporte, yPatrimonio),
+      yTopo: Math.min(yGanhoCapital, yAporteAcimaMeta, yAporteBase, yPatrimonio),
       yBase,
       segmentos,
       hitArea: {
         x: margem.left + passo * index,
         y: margem.top,
         largura: passo,
-        altura: areaAltura
-      }
+        altura: areaAltura,
+      },
     });
     pontosLinha.push({ x: xCentro, y: yPatrimonio });
 
-    ctxPatrimonio.fillStyle = "#28a977";
-    desenharBarraArredondada(ctxPatrimonio, x, yAporte, larguraBarra, aporteAltura, ganhoCapitalAltura > 0 ? 0 : 5);
+    ctxPatrimonio.fillStyle = coresGraficoPatrimonio.aporte;
+    desenharBarraArredondada(
+      ctxPatrimonio,
+      x,
+      yAporteBase,
+      larguraBarra,
+      aporteBaseAltura,
+      aporteAcimaMetaAltura > 0 || ganhoCapitalAltura > 0 ? 0 : 5,
+    );
 
+    if (aporteAcimaMetaAltura > 0) {
+      ctxPatrimonio.fillStyle = coresGraficoPatrimonio.aporteAcimaMeta;
+      desenharBarraArredondada(
+        ctxPatrimonio,
+        x,
+        yAporteAcimaMeta,
+        larguraBarra,
+        aporteAcimaMetaAltura,
+        ganhoCapitalAltura > 0 ? 0 : 5,
+      );
+    }
+
+    // ganho capital
     if (ganhoCapitalAltura > 0) {
-      ctxPatrimonio.fillStyle = "#8dddcf";
+      ctxPatrimonio.fillStyle = coresGraficoPatrimonio.ganhoMes;
       desenharBarraArredondada(ctxPatrimonio, x, yGanhoCapital, larguraBarra, ganhoCapitalAltura, 5);
     }
 
@@ -2218,7 +2278,7 @@ function obterMesesEvolucao(totalMeses) {
         mes,
         inicio: new Date(agora.getFullYear(), mes, 1),
         fim: new Date(agora.getFullYear(), mes + 1, 0),
-        rotulo: `${String(mes + 1).padStart(2, "0")}/${String(agora.getFullYear()).slice(-2)}`
+        rotulo: `${String(mes + 1).padStart(2, "0")}/${String(agora.getFullYear()).slice(-2)}`,
       });
     }
 
@@ -2232,7 +2292,7 @@ function obterMesesEvolucao(totalMeses) {
       mes: data.getMonth(),
       inicio: data,
       fim: new Date(data.getFullYear(), data.getMonth() + 1, 0),
-      rotulo: `${String(data.getMonth() + 1).padStart(2, "0")}/${String(data.getFullYear()).slice(-2)}`
+      rotulo: `${String(data.getMonth() + 1).padStart(2, "0")}/${String(data.getFullYear()).slice(-2)}`,
     });
   }
 
@@ -2255,7 +2315,7 @@ function calcularPatrimonioDoMes(mes, tipoSelecionado) {
       aporteMensal: 0,
       tiposDoMes: [],
       tipos: [],
-      periodoDisponivel: false
+      periodoDisponivel: false,
     };
   }
 
@@ -2269,9 +2329,9 @@ function calcularPatrimonioDoMes(mes, tipoSelecionado) {
     const dataCompra = new Date(`${item.data}T00:00:00`);
     const classe = obterClasse(item.ticker);
 
-    return dataCompra >= mes.inicio &&
-      dataCompra <= mes.fim &&
-      (tipoSelecionado === "todos" || classe === tipoSelecionado);
+    return (
+      dataCompra >= mes.inicio && dataCompra <= mes.fim && (tipoSelecionado === "todos" || classe === tipoSelecionado)
+    );
   });
   const aplicado = comprasDoMes.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
   const aporteMensal = comprasNoMes.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
@@ -2300,7 +2360,7 @@ function calcularPatrimonioDoMes(mes, tipoSelecionado) {
     aporteMensal,
     tiposDoMes: obterTiposComprados(comprasNoMes),
     tipos,
-    periodoDisponivel: true
+    periodoDisponivel: true,
   };
 }
 
@@ -2310,9 +2370,8 @@ function calcularProventosDoMes(mes, tipoSelecionado) {
   }
 
   return proventosRecebidos.reduce((soma, item) => {
-    const dataPagamento = item.dataPagamento instanceof Date
-      ? item.dataPagamento
-      : new Date(`${item.dataPagamento}T00:00:00`);
+    const dataPagamento =
+      item.dataPagamento instanceof Date ? item.dataPagamento : new Date(`${item.dataPagamento}T00:00:00`);
 
     if (Number.isNaN(dataPagamento.getTime())) {
       return soma;
@@ -2377,9 +2436,10 @@ function aplicarMetricaDeAporte(dados) {
   let maiorAporteAnterior = 0;
 
   return dados.map((item) => {
-    const deficitAporte = item.periodoDisponivel && maiorAporteAnterior > 0 && item.aporteMensal < maiorAporteAnterior
-      ? maiorAporteAnterior - item.aporteMensal
-      : 0;
+    const deficitAporte =
+      item.periodoDisponivel && maiorAporteAnterior > 0 && item.aporteMensal < maiorAporteAnterior
+        ? maiorAporteAnterior - item.aporteMensal
+        : 0;
 
     if (item.aporteMensal > maiorAporteAnterior) {
       maiorAporteAnterior = item.aporteMensal;
@@ -2388,7 +2448,7 @@ function aplicarMetricaDeAporte(dados) {
     return {
       ...item,
       deficitAporte,
-      metricaAporte: maiorAporteAnterior
+      metricaAporte: maiorAporteAnterior,
     };
   });
 }
@@ -2449,7 +2509,7 @@ function obterTiposComprados(compras) {
       resultado[tipo] = {
         tipo,
         total: 0,
-        tickers: new Set()
+        tickers: new Set(),
       };
     }
 
@@ -2462,7 +2522,7 @@ function obterTiposComprados(compras) {
     .map((item) => ({
       tipo: item.tipo,
       total: item.total,
-      tickers: [...item.tickers].sort()
+      tickers: [...item.tickers].sort(),
     }))
     .sort((a, b) => b.total - a.total);
 }
@@ -2472,16 +2532,20 @@ function mostrarTooltipPatrimonio(event, barra) {
   const rectPainel = canvasPatrimonio.closest(".patrimonio-panel").getBoundingClientRect();
   const tiposDoMesHtml = barra.tiposDoMes.length
     ? barra.tiposDoMes
-        .map((item) => `
+        .map(
+          (item) => `
           <span>${escaparHtml(item.tipo)}: ${dinheiro.format(item.total)} (${escaparHtml(item.tickers.join(", "))})</span>
-        `)
+        `,
+        )
         .join("")
     : "<span>Nenhuma compra neste mes.</span>";
   const tiposAcumuladosHtml = barra.tipos.length
     ? barra.tipos
-        .map((item) => `
+        .map(
+          (item) => `
           <span>${escaparHtml(item.tipo)}: ${dinheiro.format(item.total)} (${escaparHtml(item.tickers.join(", "))})</span>
-        `)
+        `,
+        )
         .join("")
     : "<span>Sem compras acumuladas ate este mes.</span>";
   const atingiuMeta = barra.aporteMensal >= metaMensalPatrimonio;
@@ -2489,10 +2553,14 @@ function mostrarTooltipPatrimonio(event, barra) {
   const statusMeta = atingiuMeta
     ? '<span class="tooltip-positive">Status: atingiu a meta de R$ 1.200</span>'
     : `<span class="tooltip-negative">Status: faltou ${dinheiro.format(faltanteMeta)} para a meta</span>`;
+  const acimaMetaHtml = barra.aporteAcimaMeta > 0
+    ? `<span class="tooltip-positive">Acima da meta: ${dinheiro.format(barra.aporteAcimaMeta)}</span>`
+    : "";
 
   tooltipPatrimonio.innerHTML = `
     <strong>${escaparHtml(barra.rotulo)}</strong>
     <span>Aporte do mes: ${dinheiro.format(barra.aporteMensal)}</span>
+    ${acimaMetaHtml}
     <span class="tooltip-highlight">Ganho do mes: ${dinheiro.format(barra.ganhoCapitalMensal)}</span>
     <span>CDB: ${dinheiro.format(barra.ganhoCdbMes)} | FIIs: ${dinheiro.format(barra.ganhoProventosMes)}</span>
     ${statusMeta}
@@ -2530,13 +2598,12 @@ function obterBarraPatrimonioNoMouse(event) {
   const y = (event.clientY - rect.top) * escalaY;
 
   return barrasPatrimonio.find((barra) => {
-    const naBarra = barra.segmentos.some((segmento) => (
-      x >= segmento.x &&
-      x <= segmento.x + segmento.largura &&
-      y >= segmento.y &&
-      y <= segmento.y + segmento.altura
-    ));
-    const naFaixaDoMes = barra.hitArea &&
+    const naBarra = barra.segmentos.some(
+      (segmento) =>
+        x >= segmento.x && x <= segmento.x + segmento.largura && y >= segmento.y && y <= segmento.y + segmento.altura,
+    );
+    const naFaixaDoMes =
+      barra.hitArea &&
       x >= barra.hitArea.x &&
       x <= barra.hitArea.x + barra.hitArea.largura &&
       y >= barra.hitArea.y &&
@@ -2565,7 +2632,7 @@ function desenharBarraArredondada(contexto, x, y, largura, altura, raio) {
 function formatarNumeroGrafico(valor) {
   return valor.toLocaleString("pt-BR", {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits: 2,
   });
 }
 
@@ -2696,11 +2763,13 @@ function obterSegmentoDaApi(ticker, dados) {
     dados.industryKey,
     dados.fundamentalist?.sector,
     dados.fundamentalist?.segment,
-    dados.fundamentalist?.subsector
+    dados.fundamentalist?.subsector,
   ];
   const segmentoApi = campos.find((valor) => typeof valor === "string" && valor.trim());
 
-  return normalizarSegmentoFii(segmentoApi) || obterSegmentoFiiConhecido(ticker) || (ticker.endsWith("11") ? "FII" : "");
+  return (
+    normalizarSegmentoFii(segmentoApi) || obterSegmentoFiiConhecido(ticker) || (ticker.endsWith("11") ? "FII" : "")
+  );
 }
 
 function normalizarSegmentoFii(segmento) {
@@ -2711,7 +2780,8 @@ function normalizarSegmentoFii(segmento) {
   if (chave.includes("real estate") || chave.includes("financial")) return "";
   if (chave.includes("log")) return "Logistico";
   if (chave.includes("receb") || chave.includes("papel") || chave.includes("cri")) return "Papel";
-  if (chave.includes("laje") || chave.includes("tijolo") || chave.includes("shopping") || chave.includes("galp")) return "Tijolo";
+  if (chave.includes("laje") || chave.includes("tijolo") || chave.includes("shopping") || chave.includes("galp"))
+    return "Tijolo";
   if (chave.includes("fundo imobili")) return "FII";
   return valor;
 }
@@ -2721,7 +2791,7 @@ function obterSegmentoFiiConhecido(ticker) {
     CPTS11: "Papel",
     GGRC11: "Logistico",
     ALZR11: "Tijolo",
-    BBAS3: "Banco"
+    BBAS3: "Banco",
   };
 
   return segmentos[ticker] || "";
@@ -2747,7 +2817,7 @@ function corDoTicker(ticker) {
     "Renda fixa": "#ffd23f",
     Giovanny: "#ff9f1c",
     Rafaela: "#00b8d9",
-    CDBINTERDI: "#ffd23f"
+    CDBINTERDI: "#ffd23f",
   };
 
   if (coresFixas[ticker]) {
@@ -2778,7 +2848,7 @@ async function enviarCompra(payload) {
     const response = await fetch("/.netlify/functions/compras", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
     const data = await response.json();
 
@@ -2791,8 +2861,8 @@ async function enviarCompra(payload) {
     return {
       data: null,
       error: {
-        message: "Nao foi possivel acessar a funcao segura. No PC, rode com Netlify Dev; no site, confira o deploy."
-      }
+        message: "Nao foi possivel acessar a funcao segura. No PC, rode com Netlify Dev; no site, confira o deploy.",
+      },
     };
   }
 }
@@ -2802,7 +2872,7 @@ async function enviarProventoManual(payload) {
     const response = await fetch("/.netlify/functions/proventos-manuais", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
     const data = await response.json();
 
@@ -2815,14 +2885,16 @@ async function enviarProventoManual(payload) {
     return {
       data: null,
       error: {
-        message: "Nao foi possivel acessar a funcao segura. No PC, rode com Netlify Dev; no site, confira o deploy."
-      }
+        message: "Nao foi possivel acessar a funcao segura. No PC, rode com Netlify Dev; no site, confira o deploy.",
+      },
     };
   }
 }
 
 function normalizarComprador(comprador) {
-  const nome = String(comprador || "").trim().toLowerCase();
+  const nome = String(comprador || "")
+    .trim()
+    .toLowerCase();
 
   if (nome === "giovanny") return "Giovanny";
   if (nome === "rafaela") return "Rafaela";
@@ -2892,10 +2964,12 @@ btnSincronizarProventos.addEventListener("click", sincronizarProventosManuais);
 btnVerProventos.addEventListener("click", alternarHistoricoProventos);
 inputGoalValue.addEventListener("input", salvarMetaCarteira);
 inputGoalMonth.addEventListener("change", salvarMetaCarteira);
-purchaseTabs.forEach((tab) => tab.addEventListener("click", () => {
-  atualizarTelaPrincipal("compras");
-  atualizarTipoCompra(tab.dataset.purchaseType);
-}));
+purchaseTabs.forEach((tab) =>
+  tab.addEventListener("click", () => {
+    atualizarTelaPrincipal("compras");
+    atualizarTipoCompra(tab.dataset.purchaseType);
+  }),
+);
 formCompra.addEventListener("submit", salvarCompra);
 btnCancelEdit.addEventListener("click", () => {
   formCompra.reset();
@@ -2943,9 +3017,3 @@ async function iniciarAplicacao() {
 }
 
 iniciarAplicacao();
-
-
-
-
-
-
