@@ -272,7 +272,14 @@ h3 {
 }
 
 .legend-ganho {
+  background: #8dddcf;
+}
+
+.legend-patrimonio {
+  height: 4px;
+  margin-block: 5px;
   background: #22d3ee;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.45);
 }
 
 .legend-deficit {
@@ -327,6 +334,11 @@ h3 {
 
 .patrimonio-tooltip .tooltip-negative {
   color: #f49aa2;
+}
+
+.patrimonio-tooltip .tooltip-highlight {
+  color: #8dddcf;
+  font-weight: 800;
 }
 
 .patrimonio-tooltip-list {

@@ -2092,7 +2092,10 @@ function renderizarEvolucaoPatrimonio() {
   const margem = { top: 30, right: 88, bottom: 58, left: 72 };
   const areaLargura = largura - margem.left - margem.right;
   const areaAltura = altura - margem.top - margem.bottom;
-  const topoMensal = arredondarTopoEscala(Math.max(metaMensalPatrimonio, ...dados.map((item) => item.aporteMensal)));
+  const topoMensal = arredondarTopoEscala(Math.max(
+    metaMensalPatrimonio,
+    ...dados.map((item) => item.aporteMensal + item.ganhoCapitalMensal)
+  ));
   const topoAcumulado = arredondarTopoEscala(Math.max(1000, ...dados.map((item) => item.total)));
   const yBase = margem.top + areaAltura;
   const linhas = 5;
@@ -2147,7 +2150,9 @@ function renderizarEvolucaoPatrimonio() {
   dados.forEach((item, index) => {
     const x = margem.left + passo * index + (passo - larguraBarra) / 2;
     const aporteAltura = (item.aporteMensal / topoMensal) * areaAltura;
+    const ganhoCapitalAltura = (item.ganhoCapitalMensal / topoMensal) * areaAltura;
     const yAporte = yBase - aporteAltura;
+    const yGanhoCapital = yAporte - ganhoCapitalAltura;
     const xCentro = x + larguraBarra / 2;
     const yPatrimonio = valorParaYEscala(item.total, margem, areaAltura, topoAcumulado);
     const segmentos = [];
@@ -2156,10 +2161,14 @@ function renderizarEvolucaoPatrimonio() {
       segmentos.push({ x, y: yAporte, largura: larguraBarra, altura: aporteAltura });
     }
 
+    if (ganhoCapitalAltura > 0) {
+      segmentos.push({ x, y: yGanhoCapital, largura: larguraBarra, altura: ganhoCapitalAltura });
+    }
+
     barrasPatrimonio.push({
       ...item,
       xCentro,
-      yTopo: Math.min(yAporte, yPatrimonio),
+      yTopo: Math.min(yGanhoCapital, yAporte, yPatrimonio),
       yBase,
       segmentos,
       hitArea: {
@@ -2172,7 +2181,12 @@ function renderizarEvolucaoPatrimonio() {
     pontosLinha.push({ x: xCentro, y: yPatrimonio });
 
     ctxPatrimonio.fillStyle = "#28a977";
-    desenharBarraArredondada(ctxPatrimonio, x, yAporte, larguraBarra, aporteAltura, 5);
+    desenharBarraArredondada(ctxPatrimonio, x, yAporte, larguraBarra, aporteAltura, ganhoCapitalAltura > 0 ? 0 : 5);
+
+    if (ganhoCapitalAltura > 0) {
+      ctxPatrimonio.fillStyle = "#8dddcf";
+      desenharBarraArredondada(ctxPatrimonio, x, yGanhoCapital, larguraBarra, ganhoCapitalAltura, 5);
+    }
 
     ctxPatrimonio.save();
     ctxPatrimonio.translate(x + larguraBarra / 2, altura - 28);
@@ -2234,6 +2248,9 @@ function calcularPatrimonioDoMes(mes, tipoSelecionado) {
       rotulo: mes.rotulo,
       aplicado: 0,
       ganho: 0,
+      ganhoCapitalMensal: 0,
+      ganhoProventosMes: 0,
+      ganhoCdbMes: 0,
       total: 0,
       aporteMensal: 0,
       tiposDoMes: [],
@@ -2258,6 +2275,9 @@ function calcularPatrimonioDoMes(mes, tipoSelecionado) {
   });
   const aplicado = comprasDoMes.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
   const aporteMensal = comprasNoMes.reduce((soma, item) => soma + item.precoCompra * item.quantidade, 0);
+  const ganhoProventosMes = calcularProventosDoMes(mes, tipoSelecionado);
+  const ganhoCdbMes = calcularRendimentoCdbDoMes(carteiraAjustada, mes, tipoSelecionado, hoje);
+  const ganhoCapitalMensal = ganhoProventosMes + ganhoCdbMes;
   const valorMercado = comprasDoMes.reduce((soma, item) => {
     if (item.ticker === "CDBINTERDI") {
       return soma + calcularCdbInter({ ...item, aplicacoes: [item] }).valorLiquido;
@@ -2273,12 +2293,84 @@ function calcularPatrimonioDoMes(mes, tipoSelecionado) {
     rotulo: mes.rotulo,
     aplicado,
     ganho: Math.max(0, valorMercado - aplicado),
+    ganhoCapitalMensal,
+    ganhoProventosMes,
+    ganhoCdbMes,
     total: valorMercado,
     aporteMensal,
     tiposDoMes: obterTiposComprados(comprasNoMes),
     tipos,
     periodoDisponivel: true
   };
+}
+
+function calcularProventosDoMes(mes, tipoSelecionado) {
+  if (tipoSelecionado !== "todos" && tipoSelecionado !== "FIIs") {
+    return 0;
+  }
+
+  return proventosRecebidos.reduce((soma, item) => {
+    const dataPagamento = item.dataPagamento instanceof Date
+      ? item.dataPagamento
+      : new Date(`${item.dataPagamento}T00:00:00`);
+
+    if (Number.isNaN(dataPagamento.getTime())) {
+      return soma;
+    }
+
+    const classe = obterClasse(item.ticker);
+    const dentroDoMes = dataPagamento >= mes.inicio && dataPagamento <= mes.fim;
+
+    return dentroDoMes && classe === "FIIs" ? soma + Number(item.total || 0) : soma;
+  }, 0);
+}
+
+function calcularRendimentoCdbDoMes(carteiraAjustada, mes, tipoSelecionado, hoje) {
+  if (tipoSelecionado !== "todos" && tipoSelecionado !== "Renda fixa") {
+    return 0;
+  }
+
+  const aplicacoesCdb = carteiraAjustada.filter((item) => item.ticker === "CDBINTERDI");
+
+  if (!aplicacoesCdb.length) {
+    return 0;
+  }
+
+  const fimPeriodo = new Date(Math.min(mes.fim.getTime(), hoje.getTime()));
+  const fimPeriodoAnterior = new Date(mes.inicio);
+  fimPeriodoAnterior.setDate(fimPeriodoAnterior.getDate() - 1);
+
+  if (fimPeriodo < mes.inicio) {
+    return 0;
+  }
+
+  const rendimentoAtual = calcularRendimentoCdbLiquidoAteData(aplicacoesCdb, fimPeriodo);
+  const rendimentoAnterior = calcularRendimentoCdbLiquidoAteData(aplicacoesCdb, fimPeriodoAnterior);
+
+  return Math.max(0, rendimentoAtual - rendimentoAnterior);
+}
+
+function calcularRendimentoCdbLiquidoAteData(aplicacoes, dataReferencia) {
+  const cdiDiario = Number.isFinite(cdiDiarioAtual) ? cdiDiarioAtual : 0;
+  const taxaDiaria = (cdiDiario / 100) * cdbInterConfig.percentualCdi;
+
+  return aplicacoes.reduce((soma, aplicacao) => {
+    const dataCompra = new Date(`${aplicacao.data}T00:00:00`);
+
+    if (Number.isNaN(dataCompra.getTime()) || dataCompra > dataReferencia) {
+      return soma;
+    }
+
+    const principal = aplicacao.precoCompra * aplicacao.quantidade;
+    const diasCorridos = Math.max(0, Math.floor((dataReferencia - dataCompra) / 86400000));
+    const diasUteis = contarDiasUteis(dataCompra, dataReferencia);
+    const rendimentoBruto = principal * (Math.pow(1 + taxaDiaria, diasUteis) - 1);
+    const iof = rendimentoBruto * obterAliquotaIof(diasCorridos);
+    const baseIr = Math.max(0, rendimentoBruto - iof);
+    const ir = baseIr * obterAliquotaIr(diasCorridos);
+
+    return soma + Math.max(0, rendimentoBruto - iof - ir);
+  }, 0);
 }
 
 function aplicarMetricaDeAporte(dados) {
@@ -2401,10 +2493,12 @@ function mostrarTooltipPatrimonio(event, barra) {
   tooltipPatrimonio.innerHTML = `
     <strong>${escaparHtml(barra.rotulo)}</strong>
     <span>Aporte do mes: ${dinheiro.format(barra.aporteMensal)}</span>
+    <span class="tooltip-highlight">Ganho do mes: ${dinheiro.format(barra.ganhoCapitalMensal)}</span>
+    <span>CDB: ${dinheiro.format(barra.ganhoCdbMes)} | FIIs: ${dinheiro.format(barra.ganhoProventosMes)}</span>
     ${statusMeta}
     <span>Patrimonio estimado: ${dinheiro.format(barra.total)}</span>
     <span>Valor aplicado: ${dinheiro.format(barra.aplicado)}</span>
-    <span>Ganho de capital: ${dinheiro.format(barra.ganho)}</span>
+    <span>Ganho acumulado: ${dinheiro.format(barra.ganho)}</span>
     <small>Tipos comprados no mes</small>
     <div class="patrimonio-tooltip-list">${tiposDoMesHtml}</div>
     <small>Carteira acumulada</small>

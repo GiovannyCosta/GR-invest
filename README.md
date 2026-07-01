@@ -159,13 +159,15 @@ Para cada mes, o app calcula:
 
 O grafico usa duas escalas independentes:
 
-- eixo esquerdo: `Aporte do mes`, usado pelas barras verdes e pela meta mensal;
+- eixo esquerdo: comportamento mensal, usado pelas barras empilhadas e pela meta mensal;
+- barra verde: `Aporte do mes`;
+- barra ciano acima da verde: `Ganho do mes`, somando rendimento estimado do CDB e proventos de FIIs recebidos no mes;
 - eixo direito: `Patrimonio estimado`, usado pela linha azul/ciano;
 - linha tracejada: meta mensal fixa de R$ 1.200.
 
 Essa separacao evita que o patrimonio acumulado, que costuma ser muito maior, esmague visualmente as barras de aporte mensal.
 
-O tooltip do grafico funciona como detalhamento do mes focado. Ele mostra aporte do mes, status da meta, patrimonio estimado, valor aplicado, ganho de capital, tipos comprados no mes e carteira acumulada.
+O tooltip do grafico funciona como detalhamento do mes focado. Ele mostra aporte do mes, ganho do mes separado entre CDB e FIIs, status da meta, patrimonio estimado, valor aplicado, ganho acumulado, tipos comprados no mes e carteira acumulada.
 
 ## Proventos
 
