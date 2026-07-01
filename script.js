@@ -23,6 +23,7 @@ const proventosManuaisStorageKey = "gr-invest-proventos-manuais";
 const metaCarteiraStorageKey = "gr-invest-meta-carteira";
 const limiteHistoricoResumo = 5;
 const intervaloAtualizacaoMercadoMs = 15 * 60 * 1000;
+const metaMensalPatrimonio = 1200;
 const canvasesAnimados = new Set();
 let mercadoAtualizacaoTimer = null;
 let mercadoAtualizando = false;
@@ -2085,19 +2086,15 @@ function renderizarGraficoBarras(dados, container = barrasCarteira) {
 function renderizarEvolucaoPatrimonio() {
   const meses = obterMesesEvolucao(Number(patrimonioPeriodo.value || 12));
   const tipoSelecionado = patrimonioTipo.value;
-  const dadosBase = meses.map((mes) => calcularPatrimonioDoMes(mes, tipoSelecionado));
-  const dados = aplicarMetricaDeAporte(dadosBase);
+  const dados = meses.map((mes) => calcularPatrimonioDoMes(mes, tipoSelecionado));
   const largura = canvasPatrimonio.width;
   const altura = canvasPatrimonio.height;
-  const margem = { top: 26, right: 28, bottom: 58, left: 72 };
+  const margem = { top: 30, right: 88, bottom: 58, left: 72 };
   const areaLargura = largura - margem.left - margem.right;
   const areaAltura = altura - margem.top - margem.bottom;
-  const maiorValor = Math.max(1000, ...dados.map((item) => item.aplicado + item.ganho));
-  const maiorDeficit = Math.max(0, ...dados.map((item) => item.deficitAporte));
-  const topoEscala = Math.ceil(maiorValor / 1000) * 1000;
-  const fundoEscala = maiorDeficit ? Math.ceil(maiorDeficit / 1000) * 1000 : 0;
-  const totalEscala = topoEscala + fundoEscala;
-  const yZero = margem.top + (topoEscala / totalEscala) * areaAltura;
+  const topoMensal = arredondarTopoEscala(Math.max(metaMensalPatrimonio, ...dados.map((item) => item.aporteMensal)));
+  const topoAcumulado = arredondarTopoEscala(Math.max(1000, ...dados.map((item) => item.total)));
+  const yBase = margem.top + areaAltura;
   const linhas = 5;
 
   barrasPatrimonio = [];
@@ -2109,71 +2106,73 @@ function renderizarEvolucaoPatrimonio() {
   ctxPatrimonio.textBaseline = "middle";
 
   for (let index = 0; index <= linhas; index += 1) {
-    const valor = topoEscala - (totalEscala / linhas) * index;
-    const y = valorParaYPatrimonio(valor, margem, areaAltura, topoEscala, totalEscala);
+    const valorMensal = topoMensal - (topoMensal / linhas) * index;
+    const valorAcumulado = topoAcumulado - (topoAcumulado / linhas) * index;
+    const y = valorParaYEscala(valorMensal, margem, areaAltura, topoMensal);
 
     ctxPatrimonio.beginPath();
     ctxPatrimonio.moveTo(margem.left, y);
     ctxPatrimonio.lineTo(largura - margem.right, y);
-    ctxPatrimonio.strokeStyle = Math.abs(valor) < 1 ? "#4a5260" : "#303744";
+    ctxPatrimonio.strokeStyle = index === linhas ? "#4a5260" : "#303744";
     ctxPatrimonio.lineWidth = 1;
     ctxPatrimonio.stroke();
+
     ctxPatrimonio.fillStyle = "#aeb8c4";
     ctxPatrimonio.textAlign = "right";
-    ctxPatrimonio.fillText(formatarNumeroGrafico(valor), margem.left - 12, y);
+    ctxPatrimonio.fillText(formatarNumeroGrafico(valorMensal), margem.left - 12, y);
+
+    ctxPatrimonio.fillStyle = "#67e8f9";
+    ctxPatrimonio.textAlign = "left";
+    ctxPatrimonio.fillText(formatarNumeroGrafico(valorAcumulado), largura - margem.right + 12, y);
   }
 
+  const yMeta = valorParaYEscala(metaMensalPatrimonio, margem, areaAltura, topoMensal);
   ctxPatrimonio.beginPath();
-  ctxPatrimonio.moveTo(margem.left, yZero);
-  ctxPatrimonio.lineTo(largura - margem.right, yZero);
-  ctxPatrimonio.strokeStyle = "#6a7280";
-  ctxPatrimonio.lineWidth = 1.5;
+  ctxPatrimonio.setLineDash([8, 7]);
+  ctxPatrimonio.moveTo(margem.left, yMeta);
+  ctxPatrimonio.lineTo(largura - margem.right, yMeta);
+  ctxPatrimonio.strokeStyle = "#f2b84b";
+  ctxPatrimonio.lineWidth = 2;
   ctxPatrimonio.stroke();
+  ctxPatrimonio.setLineDash([]);
+  ctxPatrimonio.fillStyle = "#f2b84b";
+  ctxPatrimonio.textAlign = "left";
+  ctxPatrimonio.font = "12px Arial";
+  ctxPatrimonio.fillText("Meta R$ 1.200", margem.left + 8, Math.max(margem.top + 10, yMeta - 12));
 
   const passo = areaLargura / dados.length;
-  const larguraBarra = Math.min(48, passo * 0.66);
+  const larguraBarra = Math.min(42, passo * 0.52);
+  const pontosLinha = [];
 
   dados.forEach((item, index) => {
     const x = margem.left + passo * index + (passo - larguraBarra) / 2;
-    const aplicadoAltura = (item.aplicado / totalEscala) * areaAltura;
-    const ganhoAltura = (item.ganho / totalEscala) * areaAltura;
-    const deficitAltura = (item.deficitAporte / totalEscala) * areaAltura;
-    const yAplicado = yZero - aplicadoAltura;
-    const yGanho = yAplicado - ganhoAltura;
+    const aporteAltura = (item.aporteMensal / topoMensal) * areaAltura;
+    const yAporte = yBase - aporteAltura;
+    const xCentro = x + larguraBarra / 2;
+    const yPatrimonio = valorParaYEscala(item.total, margem, areaAltura, topoAcumulado);
     const segmentos = [];
 
-    if (aplicadoAltura > 0) {
-      segmentos.push({ x, y: yAplicado, largura: larguraBarra, altura: aplicadoAltura });
-    }
-
-    if (ganhoAltura > 0) {
-      segmentos.push({ x, y: yGanho, largura: larguraBarra, altura: ganhoAltura });
-    }
-
-    if (deficitAltura > 0) {
-      segmentos.push({ x, y: yZero, largura: larguraBarra, altura: deficitAltura });
+    if (aporteAltura > 0) {
+      segmentos.push({ x, y: yAporte, largura: larguraBarra, altura: aporteAltura });
     }
 
     barrasPatrimonio.push({
       ...item,
-      xCentro: x + larguraBarra / 2,
-      yTopo: Math.min(yAplicado, yGanho),
-      yBase: yZero,
-      segmentos
+      xCentro,
+      yTopo: Math.min(yAporte, yPatrimonio),
+      yBase,
+      segmentos,
+      hitArea: {
+        x: margem.left + passo * index,
+        y: margem.top,
+        largura: passo,
+        altura: areaAltura
+      }
     });
+    pontosLinha.push({ x: xCentro, y: yPatrimonio });
 
     ctxPatrimonio.fillStyle = "#28a977";
-    desenharBarraArredondada(ctxPatrimonio, x, yAplicado, larguraBarra, aplicadoAltura, ganhoAltura > 0 ? 0 : 5);
-
-    if (ganhoAltura > 0) {
-      ctxPatrimonio.fillStyle = "#8dddcf";
-      desenharBarraArredondada(ctxPatrimonio, x, yGanho, larguraBarra, ganhoAltura, 5);
-    }
-
-    if (deficitAltura > 0) {
-      ctxPatrimonio.fillStyle = "#cf3f4b";
-      desenharBarraArredondada(ctxPatrimonio, x, yZero, larguraBarra, deficitAltura, 5);
-    }
+    desenharBarraArredondada(ctxPatrimonio, x, yAporte, larguraBarra, aporteAltura, 5);
 
     ctxPatrimonio.save();
     ctxPatrimonio.translate(x + larguraBarra / 2, altura - 28);
@@ -2183,6 +2182,8 @@ function renderizarEvolucaoPatrimonio() {
     ctxPatrimonio.fillText(item.rotulo, 0, 0);
     ctxPatrimonio.restore();
   });
+
+  desenharLinhaSuavePatrimonio(ctxPatrimonio, pontosLinha);
 
   if (!carteira.length) {
     ctxPatrimonio.fillStyle = "#aeb8c4";
@@ -2300,8 +2301,51 @@ function aplicarMetricaDeAporte(dados) {
   });
 }
 
-function valorParaYPatrimonio(valor, margem, areaAltura, topoEscala, totalEscala) {
-  return margem.top + ((topoEscala - valor) / totalEscala) * areaAltura;
+function arredondarTopoEscala(valor) {
+  const base = valor <= 2000 ? 500 : 1000;
+  return Math.max(base, Math.ceil(valor / base) * base);
+}
+
+function valorParaYEscala(valor, margem, areaAltura, topoEscala) {
+  if (!topoEscala) return margem.top + areaAltura;
+  return margem.top + ((topoEscala - valor) / topoEscala) * areaAltura;
+}
+
+function desenharLinhaSuavePatrimonio(contexto, pontos) {
+  const pontosValidos = pontos.filter((ponto) => Number.isFinite(ponto.y));
+
+  if (!pontosValidos.length) return;
+
+  contexto.save();
+  contexto.strokeStyle = "#22d3ee";
+  contexto.fillStyle = "#22d3ee";
+  contexto.lineWidth = 3;
+  contexto.shadowColor = "rgba(34, 211, 238, 0.35)";
+  contexto.shadowBlur = 12;
+  contexto.beginPath();
+  contexto.moveTo(pontosValidos[0].x, pontosValidos[0].y);
+
+  for (let index = 1; index < pontosValidos.length; index += 1) {
+    const anterior = pontosValidos[index - 1];
+    const atual = pontosValidos[index];
+    const meioX = (anterior.x + atual.x) / 2;
+
+    contexto.bezierCurveTo(meioX, anterior.y, meioX, atual.y, atual.x, atual.y);
+  }
+
+  contexto.stroke();
+  contexto.shadowBlur = 0;
+
+  pontosValidos.forEach((ponto) => {
+    contexto.beginPath();
+    contexto.arc(ponto.x, ponto.y, 4, 0, Math.PI * 2);
+    contexto.fill();
+    contexto.strokeStyle = "#1d222b";
+    contexto.lineWidth = 2;
+    contexto.stroke();
+  });
+
+  contexto.restore();
 }
 
 function obterTiposComprados(compras) {
@@ -2348,17 +2392,19 @@ function mostrarTooltipPatrimonio(event, barra) {
         `)
         .join("")
     : "<span>Sem compras acumuladas ate este mes.</span>";
-  const deficitHtml = barra.deficitAporte > 0
-    ? `<span>Abaixo da metrica: ${dinheiro.format(barra.deficitAporte)}</span>`
-    : "";
+  const atingiuMeta = barra.aporteMensal >= metaMensalPatrimonio;
+  const faltanteMeta = Math.max(0, metaMensalPatrimonio - barra.aporteMensal);
+  const statusMeta = atingiuMeta
+    ? '<span class="tooltip-positive">Status: atingiu a meta de R$ 1.200</span>'
+    : `<span class="tooltip-negative">Status: faltou ${dinheiro.format(faltanteMeta)} para a meta</span>`;
 
   tooltipPatrimonio.innerHTML = `
     <strong>${escaparHtml(barra.rotulo)}</strong>
+    <span>Aporte do mes: ${dinheiro.format(barra.aporteMensal)}</span>
+    ${statusMeta}
     <span>Patrimonio estimado: ${dinheiro.format(barra.total)}</span>
     <span>Valor aplicado: ${dinheiro.format(barra.aplicado)}</span>
     <span>Ganho de capital: ${dinheiro.format(barra.ganho)}</span>
-    <span>Aporte do mes: ${dinheiro.format(barra.aporteMensal)}</span>
-    ${deficitHtml}
     <small>Tipos comprados no mes</small>
     <div class="patrimonio-tooltip-list">${tiposDoMesHtml}</div>
     <small>Carteira acumulada</small>
@@ -2389,14 +2435,21 @@ function obterBarraPatrimonioNoMouse(event) {
   const x = (event.clientX - rect.left) * escalaX;
   const y = (event.clientY - rect.top) * escalaY;
 
-  return barrasPatrimonio.find((barra) => (
-    barra.segmentos.some((segmento) => (
+  return barrasPatrimonio.find((barra) => {
+    const naBarra = barra.segmentos.some((segmento) => (
       x >= segmento.x &&
       x <= segmento.x + segmento.largura &&
       y >= segmento.y &&
       y <= segmento.y + segmento.altura
-    ))
-  ));
+    ));
+    const naFaixaDoMes = barra.hitArea &&
+      x >= barra.hitArea.x &&
+      x <= barra.hitArea.x + barra.hitArea.largura &&
+      y >= barra.hitArea.y &&
+      y <= barra.hitArea.y + barra.hitArea.altura;
+
+    return naBarra || naFaixaDoMes;
+  });
 }
 
 function desenharBarraArredondada(contexto, x, y, largura, altura, raio) {

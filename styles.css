@@ -272,11 +272,15 @@ h3 {
 }
 
 .legend-ganho {
-  background: #8dddcf;
+  background: #22d3ee;
 }
 
 .legend-deficit {
-  background: #cf3f4b;
+  background: repeating-linear-gradient(
+    90deg,
+    #f2b84b 0 8px,
+    transparent 8px 14px
+  );
 }
 
 #grafico-patrimonio {
@@ -315,6 +319,14 @@ h3 {
   color: #b9c3ce;
   font-size: 12px;
   line-height: 1.35;
+}
+
+.patrimonio-tooltip .tooltip-positive {
+  color: #7ddf9b;
+}
+
+.patrimonio-tooltip .tooltip-negative {
+  color: #f49aa2;
 }
 
 .patrimonio-tooltip-list {
