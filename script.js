@@ -43,6 +43,49 @@ const saldoAntigoCdbInter = {
   virtual: true,
 };
 
+const notasCdbInter = [
+  {
+    data: "2026-04-09",
+    principal: 2.72,
+    valorBruto: 2.8,
+    valorLiquido: 2.79,
+    rendimentoBruto: 0.08,
+    imposto: 0.01,
+  },
+  {
+    data: "2026-06-05",
+    principal: 200,
+    valorBruto: 202.02,
+    valorLiquido: 201.42,
+    rendimentoBruto: 2.02,
+    imposto: 0.6,
+  },
+  {
+    data: "2026-06-08",
+    principal: 300,
+    valorBruto: 302.87,
+    valorLiquido: 301.79,
+    rendimentoBruto: 2.87,
+    imposto: 1.08,
+  },
+  {
+    data: "2026-06-29",
+    principal: 93.12,
+    valorBruto: 93.26,
+    valorLiquido: 93.14,
+    rendimentoBruto: 0.14,
+    imposto: 0.12,
+  },
+  {
+    data: "2026-07-01",
+    principal: 200,
+    valorBruto: 200.1,
+    valorLiquido: 200.01,
+    rendimentoBruto: 0.1,
+    imposto: 0.09,
+  },
+];
+
 const cdbInterConfig = {
   nome: "CDB POS DI LIQUIDEZ DIARIA",
   emissor: "Banco Inter",
@@ -564,6 +607,10 @@ function obterGruposPorTicker(itens = obterCarteiraComAjustes()) {
 }
 
 function obterCustoInvestidoDoGrupo(item) {
+  if (item.ticker === "CDBINTERDI") {
+    return calcularCdbInter(item).valorBruto;
+  }
+
   const custoInter = referenciaInter.custos[item.ticker];
   return Number.isFinite(custoInter) ? custoInter : item.totalInvestido;
 }
@@ -574,21 +621,15 @@ function obterQuantidadeDoGrupo(item) {
 }
 
 function obterValorAtualDoGrupo(item) {
-  const rendaFixa = referenciaInter.rendaFixa[item.ticker];
-
-  if (rendaFixa && Number.isFinite(rendaFixa.valorLiquido)) {
-    return rendaFixa.valorLiquido;
-  }
-
   const cotacaoInter = referenciaInter.cotacoes[item.ticker];
   const precoAtual = Number.isFinite(cotacaoInter) ? cotacaoInter : obterPrecoAtual(item.ticker);
 
-  if (Number.isFinite(precoAtual) && precoAtual > 0) {
-    return precoAtual * obterQuantidadeDoGrupo(item);
-  }
-
   if (item.ticker === "CDBINTERDI") {
     return calcularCdbInter(item).valorLiquido;
+  }
+
+  if (Number.isFinite(precoAtual) && precoAtual > 0) {
+    return precoAtual * obterQuantidadeDoGrupo(item);
   }
 
   return item.totalInvestido;
@@ -1723,67 +1764,110 @@ function calcularCdbInter(item) {
   const aplicacoes = item.aplicacoes && item.aplicacoes.length ? item.aplicacoes : [item];
   const hoje = new Date();
   const cdiDiario = Number.isFinite(cdiDiarioAtual) ? cdiDiarioAtual : 0;
-  const taxaDiaria = (cdiDiario / 100) * cdbInterConfig.percentualCdi;
   const totais = aplicacoes.reduce(
-    (resultado, aplicacao) => {
-      const dataCompra = new Date(`${aplicacao.data}T00:00:00`);
-      const principal = aplicacao.precoCompra * aplicacao.quantidade;
-      const diasCorridos = Number.isNaN(dataCompra.getTime())
-        ? 0
-        : Math.max(0, Math.floor((hoje - dataCompra) / 86400000));
-      const diasUteis = Number.isNaN(dataCompra.getTime()) ? 0 : contarDiasUteis(dataCompra, hoje);
-      const rendimentoBruto = principal * (Math.pow(1 + taxaDiaria, diasUteis) - 1);
-      const iof = rendimentoBruto * obterAliquotaIof(diasCorridos);
-      const baseIr = Math.max(0, rendimentoBruto - iof);
-      const ir = baseIr * obterAliquotaIr(diasCorridos);
-      const rendimentoLiquido = Math.max(0, rendimentoBruto - iof - ir);
-
-      resultado.principal += principal;
-      resultado.diasCorridos = Math.max(resultado.diasCorridos, diasCorridos);
-      resultado.diasUteis += diasUteis;
-      resultado.rendimentoBruto += rendimentoBruto;
-      resultado.iof += iof;
-      resultado.ir += ir;
-      resultado.rendimentoLiquido += rendimentoLiquido;
-      return resultado;
-    },
-    {
-      principal: 0,
-      diasCorridos: 0,
-      diasUteis: 0,
-      rendimentoBruto: 0,
-      iof: 0,
-      ir: 0,
-      rendimentoLiquido: 0,
-    },
+    (resultado, aplicacao) => somarResumoCdb(resultado, calcularAplicacaoCdbInter(aplicacao, hoje)),
+    criarResumoCdbVazio(),
   );
-  const referencia = item.aplicacoes?.length > 1 ? referenciaInter.rendaFixa[item.ticker] : null;
-
-  if (referencia && Number.isFinite(referencia.valorLiquido)) {
-    const principal = Number.isFinite(referencia.principal) ? referencia.principal : totais.principal;
-    const rendimentoLiquido = Number.isFinite(referencia.rendimentoLiquido)
-      ? referencia.rendimentoLiquido
-      : Math.max(0, referencia.valorLiquido - principal);
-
-    return {
-      ...totais,
-      principal,
-      cdiDiario,
-      rendimentoBruto: rendimentoLiquido,
-      iof: 0,
-      ir: 0,
-      rendimentoLiquido,
-      valorBruto: principal + rendimentoLiquido,
-      valorLiquido: referencia.valorLiquido,
-    };
-  }
 
   return {
     ...totais,
     cdiDiario,
-    valorBruto: totais.principal + totais.rendimentoBruto,
-    valorLiquido: totais.principal + totais.rendimentoLiquido,
   };
+}
+
+function criarResumoCdbVazio() {
+  return {
+    principal: 0,
+    diasCorridos: 0,
+    diasUteis: 0,
+    rendimentoBruto: 0,
+    iof: 0,
+    ir: 0,
+    rendimentoLiquido: 0,
+    valorBruto: 0,
+    valorLiquido: 0,
+  };
+}
+
+function somarResumoCdb(resultado, resumo) {
+  resultado.principal += resumo.principal;
+  resultado.diasCorridos = Math.max(resultado.diasCorridos, resumo.diasCorridos);
+  resultado.diasUteis += resumo.diasUteis;
+  resultado.rendimentoBruto += resumo.rendimentoBruto;
+  resultado.iof += resumo.iof;
+  resultado.ir += resumo.ir;
+  resultado.rendimentoLiquido += resumo.rendimentoLiquido;
+  resultado.valorBruto += resumo.valorBruto;
+  resultado.valorLiquido += resumo.valorLiquido;
+  return resultado;
+}
+
+function calcularAplicacaoCdbInter(aplicacao, dataReferencia = new Date()) {
+  const nota = obterNotaCdbInter(aplicacao, dataReferencia);
+  const dataCompra = new Date(`${aplicacao.data}T00:00:00`);
+  const dataValida = !Number.isNaN(dataCompra.getTime());
+  const diasCorridos = dataValida ? Math.max(0, Math.floor((dataReferencia - dataCompra) / 86400000)) : 0;
+  const diasUteis = dataValida ? contarDiasUteis(dataCompra, dataReferencia) : 0;
+
+  if (nota) {
+    return {
+      principal: nota.principal,
+      diasCorridos,
+      diasUteis,
+      rendimentoBruto: nota.rendimentoBruto,
+      iof: nota.imposto,
+      ir: 0,
+      rendimentoLiquido: Math.max(0, nota.valorLiquido - nota.principal),
+      valorBruto: nota.valorBruto,
+      valorLiquido: nota.valorLiquido,
+    };
+  }
+
+  const principal = aplicacao.precoCompra * aplicacao.quantidade;
+  const cdiDiario = Number.isFinite(cdiDiarioAtual) ? cdiDiarioAtual : 0;
+  const taxaDiaria = (cdiDiario / 100) * cdbInterConfig.percentualCdi;
+  const rendimentoBruto = principal * (Math.pow(1 + taxaDiaria, diasUteis) - 1);
+  const iof = rendimentoBruto * obterAliquotaIof(diasCorridos);
+  const baseIr = Math.max(0, rendimentoBruto - iof);
+  const ir = baseIr * obterAliquotaIr(diasCorridos);
+  const rendimentoLiquido = Math.max(0, rendimentoBruto - iof - ir);
+
+  return {
+    principal,
+    diasCorridos,
+    diasUteis,
+    rendimentoBruto,
+    iof,
+    ir,
+    rendimentoLiquido,
+    valorBruto: principal + rendimentoBruto,
+    valorLiquido: principal + rendimentoLiquido,
+  };
+}
+
+function obterNotaCdbInter(aplicacao, dataReferencia) {
+  const dataReferenciaTexto = formatarDataIso(dataReferencia);
+
+  if (dataReferenciaTexto < "2026-07-02") {
+    return null;
+  }
+
+  const principal = arredondarMoeda(aplicacao.precoCompra * aplicacao.quantidade);
+
+  return notasCdbInter.find(
+    (nota) => nota.data === aplicacao.data && Math.abs(arredondarMoeda(nota.principal) - principal) < 0.01,
+  );
+}
+
+function formatarDataIso(data) {
+  if (!(data instanceof Date) || Number.isNaN(data.getTime())) {
+    return "";
+  }
+
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  const dia = String(data.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
 }
 
 function contarDiasUteis(inicio, fim) {
@@ -1861,7 +1945,7 @@ function criarCardAtivoAoVivo(item) {
       ? arredondarMoeda(precoMercado * item.quantidade)
       : null;
   const ganho = rendaFixa
-    ? cdb.rendimentoLiquido
+    ? cdb.rendimentoBruto
     : temMercado
       ? arredondarMoeda(valorMercado - totalInvestidoItem)
       : null;
@@ -1877,12 +1961,8 @@ function criarCardAtivoAoVivo(item) {
   const detalhesCdb = rendaFixa
     ? `
         <div>
-          <span>IR estimado</span>
-          <strong>${dinheiro.format(cdb.ir)}</strong>
-        </div>
-        <div>
-          <span>IOF estimado</span>
-          <strong>${dinheiro.format(cdb.iof)}</strong>
+          <span>IR/IOF estimado</span>
+          <strong>${dinheiro.format(cdb.ir + cdb.iof)}</strong>
         </div>
         <div>
           <span>CDI diario</span>
