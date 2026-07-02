@@ -484,7 +484,7 @@ select:focus {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
@@ -706,7 +706,7 @@ select:focus {
 
 .charts {
   display: grid;
-  grid-template-columns: minmax(260px, 360px) 1fr;
+  grid-template-columns: minmax(300px, 380px) minmax(280px, 1fr);
   gap: 18px;
   align-items: center;
   border: 1px solid var(--line);
@@ -717,6 +717,11 @@ select:focus {
 
 .pie-area {
   position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 300px;
+  border-radius: 8px;
+  background: #181d26;
 }
 
 canvas {
@@ -754,15 +759,25 @@ canvas {
   line-height: 1.35;
 }
 
+.chart-tooltip .positive,
+.legend-item .positive {
+  color: var(--brand-strong);
+}
+
+.chart-tooltip .negative,
+.legend-item .negative {
+  color: var(--danger);
+}
+
 .pie-legend {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 10px;
 }
 
 .legend-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 9px;
   min-width: 0;
 }
@@ -786,6 +801,12 @@ canvas {
 .legend-item small {
   color: var(--muted);
   font-size: 12px;
+}
+
+.legend-item > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
 }
 
 .bar-chart {
@@ -989,7 +1010,7 @@ th {
   }
 
   .metrics {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .table-filters {
@@ -1037,6 +1058,7 @@ th {
 }
 
 @media (max-width: 560px) {
+  .metrics,
   .table-filters,
   .manual-income-form,
   .asset-live-grid-list,

@@ -55,7 +55,8 @@
       <form id="form-compra" class="form">
         <label id="ticker-wrapper">
           Ticker
-          <input id="input-ticker" name="ticker" type="text" placeholder="PETR4" autocomplete="off" required>
+          <input id="input-ticker" name="ticker" type="text" placeholder="PETR4" autocomplete="off" list="tickers-existentes" required>
+          <datalist id="tickers-existentes"></datalist>
         </label>
 
         <div class="price-box" id="price-wrapper">
@@ -121,6 +122,14 @@
         <div>
           <span>Patrimonio + proventos</span>
           <strong id="patrimonio-proventos">R$ 0,00</strong>
+        </div>
+        <div>
+          <span>Renda variavel investida</span>
+          <strong id="renda-variavel-investida">R$ 0,00</strong>
+        </div>
+        <div>
+          <span>Rendimento renda variavel</span>
+          <strong id="rendimento-renda-variavel">R$ 0,00</strong>
         </div>
       </div>
 

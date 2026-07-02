@@ -106,36 +106,8 @@ const historicoManualProventos = [
 
 const proventosFuturosIgnorados = [{ ticker: "GGRC11", dataPagamento: "2026-07-20" }];
 
-const referenciaInter = {
-  data: "2026-06-23",
-  quantidades: {
-    CPTS11: 80,
-    GGRC11: 45,
-    BBAS3: 5,
-    ALZR11: 20,
-  },
-  custos: {
-    CPTS11: 630.4,
-    GGRC11: 456.75,
-    BBAS3: 96.95,
-    ALZR11: 201.8,
-  },
-  cotacoes: {
-    CPTS11: 7.27,
-    GGRC11: 9.88,
-    BBAS3: 19.6,
-    ALZR11: 9.75,
-  },
-  rendaFixa: {
-    CDBINTERDI: {
-      principal: 502.72,
-      valorLiquido: 503.95,
-      rendimentoLiquido: 1.23,
-    },
-  },
-};
-
 const inputTicker = document.getElementById("input-ticker");
+const inputTickersExistentes = document.getElementById("tickers-existentes");
 const inputPreco = document.getElementById("input-preco");
 const inputComprador = document.getElementById("input-comprador");
 const inputSenha = document.getElementById("input-senha");
@@ -154,6 +126,8 @@ const totalInvestido = document.getElementById("total-investido");
 const totalAcoes = document.getElementById("total-acoes");
 const totalProventos = document.getElementById("total-proventos");
 const patrimonioProventos = document.getElementById("patrimonio-proventos");
+const rendaVariavelInvestida = document.getElementById("renda-variavel-investida");
+const rendimentoRendaVariavel = document.getElementById("rendimento-renda-variavel");
 const totalItens = document.getElementById("total-itens");
 const emptyHint = document.getElementById("empty-hint");
 const proventosStatus = document.getElementById("proventos-status");
@@ -287,6 +261,7 @@ function atualizarTipoCompra(tipo) {
   inputTicker.required = !rendaFixa;
   document.getElementById("input-qtd").required = !rendaFixa;
   precoLabelText.textContent = rendaFixa ? "Valor da aplicacao" : "Preco de compra";
+  atualizarSugestoesDeTicker();
 
   if (rendaFixa) {
     inputTicker.value = "CDBINTERDI";
@@ -301,6 +276,21 @@ function atualizarTipoCompra(tipo) {
     document.getElementById("input-qtd").value = "";
     spanPrecoAtual.textContent = "Aguardando...";
   }
+}
+
+function atualizarSugestoesDeTicker() {
+  if (!inputTickersExistentes) return;
+
+  const classeAtual = tipoCompra === "fiis" ? "FIIs" : tipoCompra === "acoes" ? "Acoes" : "";
+  const tickers = [
+    ...new Set(
+      carteira
+        .map((item) => item.ticker)
+        .filter((ticker) => ticker !== "CDBINTERDI" && (!classeAtual || obterClasse(ticker) === classeAtual)),
+    ),
+  ].sort();
+
+  inputTickersExistentes.innerHTML = tickers.map((ticker) => `<option value="${escaparHtml(ticker)}"></option>`).join("");
 }
 
 function iniciarSupabase() {
@@ -339,6 +329,7 @@ async function carregarCarteira() {
   }));
 
   connectionStatus.textContent = "Conectado";
+  atualizarSugestoesDeTicker();
   await atualizarMercadoCarteira();
   atualizarDashboard();
   atualizarProventos();
@@ -379,6 +370,11 @@ async function buscarCotacao(ticker) {
 async function salvarCompra(event) {
   event.preventDefault();
 
+  if (!formCompra.checkValidity()) {
+    formCompra.reportValidity();
+    return;
+  }
+
   if (!db) {
     alert("Configure o arquivo config.js antes de salvar.");
     return;
@@ -386,6 +382,7 @@ async function salvarCompra(event) {
 
   const precoCompra = lerNumero(inputPreco.value);
   const quantidade = tipoCompra === "renda-fixa" ? 1 : Number(document.getElementById("input-qtd").value);
+  const dataCompra = document.getElementById("input-data").value;
 
   if (!Number.isFinite(precoCompra) || precoCompra <= 0) {
     alert("Informe um preco valido. Exemplo: 8,04 ou 8.04");
@@ -396,6 +393,12 @@ async function salvarCompra(event) {
   if (tipoCompra !== "renda-fixa" && (!Number.isInteger(quantidade) || quantidade <= 0)) {
     alert("Informe uma quantidade valida.");
     document.getElementById("input-qtd").focus();
+    return;
+  }
+
+  if (!dataCompra) {
+    alert("Informe a data da compra.");
+    document.getElementById("input-data").focus();
     return;
   }
 
@@ -428,7 +431,7 @@ async function salvarCompra(event) {
     ticker,
     preco_compra: precoCompra,
     quantidade,
-    data_compra: document.getElementById("input-data").value,
+    data_compra: dataCompra,
     comprador,
   };
 
@@ -552,6 +555,7 @@ function atualizarDashboard() {
   const carteiraAjustada = obterCarteiraComAjustes();
   const total = calcularTotalInvestido(carteiraAjustada);
   const patrimonioAtual = calcularValorAtualCarteira(carteiraAjustada);
+  const resumoRendaVariavel = calcularResumoRendaVariavel(carteiraAjustada);
   const quantidade = carteiraAjustada.reduce((soma, item) => soma + item.quantidade, 0);
   const tickersUnicos = new Set(carteiraAjustada.map((item) => item.ticker)).size;
   const totalRecebido = proventosRecebidos.reduce((soma, item) => soma + item.total, 0);
@@ -560,6 +564,10 @@ function atualizarDashboard() {
   totalAcoes.textContent = String(quantidade);
   totalProventos.textContent = dinheiro.format(totalRecebido);
   patrimonioProventos.textContent = dinheiro.format(patrimonioAtual + totalRecebido);
+  rendaVariavelInvestida.textContent = dinheiro.format(resumoRendaVariavel.investido);
+  rendimentoRendaVariavel.textContent = dinheiro.format(resumoRendaVariavel.rendimento);
+  rendimentoRendaVariavel.classList.toggle("positive", resumoRendaVariavel.rendimento >= 0);
+  rendimentoRendaVariavel.classList.toggle("negative", resumoRendaVariavel.rendimento < 0);
   renderizarMetaCarteira(patrimonioAtual + totalRecebido);
   totalItens.textContent = `${tickersUnicos} ${tickersUnicos === 1 ? "ativo" : "ativos"}`;
   emptyHint.textContent = carteira.length ? `${carteira.length} compras` : "Sem compras cadastradas";
@@ -577,6 +585,18 @@ function calcularTotalInvestido(itens = obterCarteiraComAjustes()) {
 
 function calcularValorAtualCarteira(itens = obterCarteiraComAjustes()) {
   return obterGruposPorTicker(itens).reduce((soma, item) => soma + obterValorAtualDoGrupo(item), 0);
+}
+
+function calcularResumoRendaVariavel(itens = obterCarteiraComAjustes()) {
+  const grupos = obterGruposPorTicker(itens).filter((item) => item.ticker !== "CDBINTERDI");
+  const investido = grupos.reduce((soma, item) => soma + item.totalInvestido, 0);
+  const atual = grupos.reduce((soma, item) => soma + obterValorAtualDoGrupo(item), 0);
+
+  return {
+    investido,
+    atual,
+    rendimento: atual - investido,
+  };
 }
 
 function obterGruposPorTicker(itens = obterCarteiraComAjustes()) {
@@ -611,22 +631,19 @@ function obterCustoInvestidoDoGrupo(item) {
     return calcularCdbInter(item).valorBruto;
   }
 
-  const custoInter = referenciaInter.custos[item.ticker];
-  return Number.isFinite(custoInter) ? custoInter : item.totalInvestido;
+  return item.totalInvestido;
 }
 
 function obterQuantidadeDoGrupo(item) {
-  const quantidadeInter = referenciaInter.quantidades[item.ticker];
-  return Number.isFinite(quantidadeInter) ? quantidadeInter : item.quantidade;
+  return item.quantidade;
 }
 
 function obterValorAtualDoGrupo(item) {
-  const cotacaoInter = referenciaInter.cotacoes[item.ticker];
-  const precoAtual = Number.isFinite(cotacaoInter) ? cotacaoInter : obterPrecoAtual(item.ticker);
-
   if (item.ticker === "CDBINTERDI") {
     return calcularCdbInter(item).valorLiquido;
   }
+
+  const precoAtual = obterPrecoAtual(item.ticker);
 
   if (Number.isFinite(precoAtual) && precoAtual > 0) {
     return precoAtual * obterQuantidadeDoGrupo(item);
@@ -640,8 +657,7 @@ function obterValorAtualDaCompra(item) {
     return calcularCdbInter({ ...item, aplicacoes: [item] }).valorLiquido;
   }
 
-  const cotacaoInter = referenciaInter.cotacoes[item.ticker];
-  const precoAtual = Number.isFinite(cotacaoInter) ? cotacaoInter : obterPrecoAtual(item.ticker);
+  const precoAtual = obterPrecoAtual(item.ticker);
   const preco = Number.isFinite(precoAtual) && precoAtual > 0 ? precoAtual : item.precoCompra;
   return preco * item.quantidade;
 }
@@ -774,6 +790,7 @@ function atualizarBotaoHistoricoCompras(total) {
 }
 
 function renderizarGraficos() {
+  const dadosPorTicker = obterResumoPorTicker();
   const dadosPorClasse = obterResumoPorClasse();
   const dadosFiis = obterResumoDeFiis();
   const dadosAcoes = obterResumoDeAcoes();
@@ -782,6 +799,7 @@ function renderizarGraficos() {
   const totalFiis = dadosFiis.reduce((soma, item) => soma + item.total, 0);
   const totalAcoesCarteira = dadosAcoes.reduce((soma, item) => soma + item.total, 0);
   const totalCompradores = dadosCompradores.reduce((soma, item) => soma + item.total, 0);
+  const resumoRendaVariavel = calcularResumoRendaVariavel();
   const percentualFiis = totalCarteira ? (totalFiis / totalCarteira) * 100 : 0;
   const percentualAcoes = totalCarteira ? (totalAcoesCarteira / totalCarteira) * 100 : 0;
   const dadosParticipacao =
@@ -793,7 +811,7 @@ function renderizarGraficos() {
           ? dadosCompradores
           : dadosPorClasse;
 
-  generalChartTotal.textContent = `${dinheiro.format(totalCarteira)} no total`;
+  generalChartTotal.textContent = `${dinheiro.format(totalCarteira)} atual | RV ${dinheiro.format(resumoRendaVariavel.rendimento)}`;
   fiiChartTotal.textContent = `${percentualFiis.toFixed(1)}% da carteira em FIIs`;
   acoesChartTotal.textContent = `${percentualAcoes.toFixed(1)}% da carteira em acoes`;
   compradoresChartTotal.textContent = `${dinheiro.format(totalCompradores)} em compras`;
@@ -814,7 +832,7 @@ function renderizarGraficos() {
           ? "Percentual por comprador"
           : "Percentual por classe";
 
-  renderizarGraficoPizza(dadosPorClasse);
+  renderizarGraficoPizza(dadosPorTicker);
   renderizarGraficoPizzaSecundario(dadosFiis, ctxFiis, canvasFiis, legendaFiis);
   renderizarGraficoPizzaSecundario(dadosFiis, ctxFiisTab, canvasFiisTab, legendaFiisTab);
   renderizarGraficoPizzaSecundario(dadosAcoes, ctxAcoes, canvasAcoes, legendaAcoes, {
@@ -1029,6 +1047,9 @@ async function buscarCotacaoSilenciosa(ticker) {
 
     return {
       preco: Number(resultado.regularMarketPrice || 0),
+      variacao: Number(resultado.regularMarketChange || 0),
+      variacaoPercentual: Number(resultado.regularMarketChangePercent || 0),
+      atualizadoEm: resultado.regularMarketTime || "",
       segmento: obterSegmentoDaApi(ticker, resultado),
       nome: resultado.longName || resultado.shortName || ticker,
     };
@@ -1854,9 +1875,12 @@ function obterNotaCdbInter(aplicacao, dataReferencia) {
 
   const principal = arredondarMoeda(aplicacao.precoCompra * aplicacao.quantidade);
 
-  return notasCdbInter.find(
-    (nota) => nota.data === aplicacao.data && Math.abs(arredondarMoeda(nota.principal) - principal) < 0.01,
-  );
+  return notasCdbInter.find((nota) => {
+    const mesmoValor = Math.abs(arredondarMoeda(nota.principal) - principal) < 0.01;
+    const diferencaDias = Math.abs(diferencaEmDias(aplicacao.data, nota.data));
+
+    return mesmoValor && diferencaDias <= 1;
+  });
 }
 
 function formatarDataIso(data) {
@@ -1868,6 +1892,17 @@ function formatarDataIso(data) {
   const mes = String(data.getMonth() + 1).padStart(2, "0");
   const dia = String(data.getDate()).padStart(2, "0");
   return `${ano}-${mes}-${dia}`;
+}
+
+function diferencaEmDias(dataA, dataB) {
+  const primeira = new Date(`${dataA}T00:00:00`);
+  const segunda = new Date(`${dataB}T00:00:00`);
+
+  if (Number.isNaN(primeira.getTime()) || Number.isNaN(segunda.getTime())) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Math.round((primeira - segunda) / 86400000);
 }
 
 function contarDiasUteis(inicio, fim) {
@@ -1937,6 +1972,7 @@ function criarCardAtivoAoVivo(item) {
   const totalInvestidoItem = Number.isFinite(item.totalInvestido) ? item.totalInvestido : item.total;
   const precoMedio = item.quantidade ? totalInvestidoItem / item.quantidade : 0;
   const cdb = rendaFixa ? calcularCdbInter(item) : null;
+  const cotacao = rendaFixa ? null : cotacoesAtuais[item.ticker];
   const precoMercado = rendaFixa ? cdb.valorLiquido : obterPrecoAtual(item.ticker);
   const temMercado = rendaFixa || (Number.isFinite(precoMercado) && precoMercado > 0);
   const valorMercado = rendaFixa
@@ -1958,6 +1994,10 @@ function criarCardAtivoAoVivo(item) {
       : null;
   const variacaoClasse = ganho === null ? "" : ganho >= 0 ? "positive" : "negative";
   const sinal = ganho !== null && ganho > 0 ? "+" : "";
+  const variacaoDia = Number.isFinite(cotacao?.variacao) ? cotacao.variacao : null;
+  const variacaoDiaPercentual = Number.isFinite(cotacao?.variacaoPercentual) ? cotacao.variacaoPercentual : null;
+  const variacaoDiaClasse = variacaoDia === null ? "" : variacaoDia >= 0 ? "positive" : "negative";
+  const variacaoDiaSinal = variacaoDia !== null && variacaoDia > 0 ? "+" : "";
   const detalhesCdb = rendaFixa
     ? `
         <div>
@@ -1996,6 +2036,22 @@ function criarCardAtivoAoVivo(item) {
             ${ganho === null ? "Aguardando" : `${sinal}${dinheiro.format(ganho)} (${sinal}${ganhoPercentual.toFixed(2)}%)`}
           </strong>
         </div>
+        ${
+          rendaFixa
+            ? ""
+            : `
+        <div>
+          <span>Hoje</span>
+          <strong class="${variacaoDiaClasse}">
+            ${
+              variacaoDia === null || variacaoDiaPercentual === null
+                ? "Aguardando"
+                : `${variacaoDiaSinal}${dinheiro.format(variacaoDia)} (${variacaoDiaSinal}${variacaoDiaPercentual.toFixed(2)}%)`
+            }
+          </strong>
+        </div>
+        `
+        }
         <div>
           <span>${rendaFixa ? "Valor bruto" : "Preco medio"}</span>
           <strong>${rendaFixa ? dinheiro.format(cdb.valorBruto) : dinheiro.format(precoMedio)}</strong>
@@ -2483,16 +2539,13 @@ function calcularRendimentoCdbDoMes(carteiraAjustada, mes, tipoSelecionado, hoje
     return 0;
   }
 
-  const rendimentoAtual = calcularRendimentoCdbLiquidoAteData(aplicacoesCdb, fimPeriodo);
-  const rendimentoAnterior = calcularRendimentoCdbLiquidoAteData(aplicacoesCdb, fimPeriodoAnterior);
+  const rendimentoAtual = calcularRendimentoCdbBrutoAteData(aplicacoesCdb, fimPeriodo);
+  const rendimentoAnterior = calcularRendimentoCdbBrutoAteData(aplicacoesCdb, fimPeriodoAnterior);
 
   return Math.max(0, rendimentoAtual - rendimentoAnterior);
 }
 
-function calcularRendimentoCdbLiquidoAteData(aplicacoes, dataReferencia) {
-  const cdiDiario = Number.isFinite(cdiDiarioAtual) ? cdiDiarioAtual : 0;
-  const taxaDiaria = (cdiDiario / 100) * cdbInterConfig.percentualCdi;
-
+function calcularRendimentoCdbBrutoAteData(aplicacoes, dataReferencia) {
   return aplicacoes.reduce((soma, aplicacao) => {
     const dataCompra = new Date(`${aplicacao.data}T00:00:00`);
 
@@ -2500,15 +2553,7 @@ function calcularRendimentoCdbLiquidoAteData(aplicacoes, dataReferencia) {
       return soma;
     }
 
-    const principal = aplicacao.precoCompra * aplicacao.quantidade;
-    const diasCorridos = Math.max(0, Math.floor((dataReferencia - dataCompra) / 86400000));
-    const diasUteis = contarDiasUteis(dataCompra, dataReferencia);
-    const rendimentoBruto = principal * (Math.pow(1 + taxaDiaria, diasUteis) - 1);
-    const iof = rendimentoBruto * obterAliquotaIof(diasCorridos);
-    const baseIr = Math.max(0, rendimentoBruto - iof);
-    const ir = baseIr * obterAliquotaIr(diasCorridos);
-
-    return soma + Math.max(0, rendimentoBruto - iof - ir);
+    return soma + calcularAplicacaoCdbInter(aplicacao, dataReferencia).rendimentoBruto;
   }, 0);
 }
 
@@ -2718,12 +2763,21 @@ function formatarNumeroGrafico(valor) {
 
 function criarItemLegenda(item, cor) {
   const div = document.createElement("div");
+  const rendimento = Number.isFinite(item.totalInvestido) ? item.total - item.totalInvestido : 0;
+  const classeRendimento = rendimento >= 0 ? "positive" : "negative";
+  const sinal = rendimento > 0 ? "+" : "";
+
   div.className = "legend-item";
   div.innerHTML = `
     <span class="legend-color" style="background: ${cor};"></span>
     <div>
       <strong>${escaparHtml(item.ticker)}</strong>
-      <small>${item.percentual.toFixed(1)}% - ${item.segmento}</small>
+      <small>${item.percentual.toFixed(1)}% - ${dinheiro.format(item.total)}</small>
+      ${
+        Number.isFinite(item.totalInvestido)
+          ? `<small class="${classeRendimento}">${sinal}${dinheiro.format(rendimento)}</small>`
+          : ""
+      }
     </div>
   `;
   return div;
@@ -2736,10 +2790,18 @@ function mostrarTooltip(event, fatia, canvasAlvo = canvas) {
     .join("<br>");
   const rect = canvasAlvo.getBoundingClientRect();
   const carteiraTexto = `${fatia.percentual.toFixed(1)}%`;
+  const rendimento =
+    Number.isFinite(fatia.totalInvestido) && Number.isFinite(fatia.total) ? fatia.total - fatia.totalInvestido : null;
+  const rendimentoHtml =
+    rendimento === null
+      ? ""
+      : `<span>Aplicado: ${dinheiro.format(fatia.totalInvestido)}</span>
+         <span class="${rendimento >= 0 ? "positive" : "negative"}">Rendimento: ${rendimento > 0 ? "+" : ""}${dinheiro.format(rendimento)}</span>`;
 
   tooltip.innerHTML = `
     <strong>${escaparHtml(fatia.ticker)}</strong>
-    <span>${dinheiro.format(fatia.total)}</span>
+    <span>Atual: ${dinheiro.format(fatia.total)}</span>
+    ${rendimentoHtml}
     <span>Segmento: ${fatia.segmento}</span>
     <span>Participacao: ${carteiraTexto}</span>
     ${compradores ? `<span>${compradores}</span>` : ""}
@@ -2828,9 +2890,7 @@ function obterPrecoAtual(ticker) {
     return cotacao.preco;
   }
 
-  const cotacaoInter = referenciaInter.cotacoes[ticker];
-
-  return Number.isFinite(cotacaoInter) ? cotacaoInter : undefined;
+  return undefined;
 }
 
 function obterSegmentoDaApi(ticker, dados) {
@@ -2898,6 +2958,9 @@ function corDoTicker(ticker) {
     Giovanny: "#ff9f1c",
     Rafaela: "#00b8d9",
     CDBINTERDI: "#ffd23f",
+    BBAS3: "#2f8cff",
+    FESA4: "#fc6471",
+    ABCB4F: "#b4ef18",
   };
 
   if (coresFixas[ticker]) {
@@ -3023,6 +3086,15 @@ function registrarInteracaoPizza(canvasAlvo) {
 }
 
 inputTicker.addEventListener("blur", () => {
+  if (tipoCompra !== "renda-fixa") buscarCotacao(inputTicker.value);
+});
+inputTicker.addEventListener("input", () => {
+  const normalizado = inputTicker.value.toUpperCase().trim();
+  if (inputTicker.value !== normalizado) {
+    inputTicker.value = normalizado;
+  }
+});
+inputTicker.addEventListener("change", () => {
   if (tipoCompra !== "renda-fixa") buscarCotacao(inputTicker.value);
 });
 inputComprador.addEventListener("change", atualizarCampoSenha);
